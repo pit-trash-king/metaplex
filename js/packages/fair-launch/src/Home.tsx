@@ -581,7 +581,23 @@ const Home = (props: HomeProps) => {
 
   return (
     <Container style={{ marginTop: 100 }}>
-      <Container maxWidth="xs" style={{ position: 'relative' }}>
+      <Container
+        maxWidth="xs"
+        style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+        }}
+      >
+        <img src="LogoTransp.png" style={{ height: '200px', width: '200px' }} />
+      </Container>
+      <Container
+        maxWidth="xs"
+        style={{
+          position: 'relative',
+        }}
+      >
         <div
           style={{
             display: 'flex',
@@ -602,7 +618,12 @@ const Home = (props: HomeProps) => {
           </Link>
         </div>
       </Container>
-      <Container maxWidth="xs" style={{ position: 'relative' }}>
+      <Container
+        maxWidth="xs"
+        style={{
+          position: 'relative',
+        }}
+      >
         <Paper
           style={{ padding: 24, backgroundColor: '#151A1F', borderRadius: 6 }}
         >
