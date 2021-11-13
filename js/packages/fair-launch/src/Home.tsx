@@ -416,7 +416,7 @@ const Home = (props: HomeProps) => {
           console.log(e);
         }
       } else {
-        console.log('No candy machine detected in configuration.');
+        console.log('No candy machine detected in configuration. ');
       }
     })();
   }, [
