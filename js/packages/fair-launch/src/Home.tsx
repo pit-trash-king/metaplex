@@ -206,11 +206,7 @@ const FAIR_LAUNCH_LOTTERY_SIZE =
   1 + // bump
   8; // size of bitmask ones
 
-const isWinner = (
-  fairLaunch: FairLaunchAccount | undefined,
-  fairLaunchBalance: number,
-): boolean => {
-  if (fairLaunchBalance > 0) return true;
+const isWinner = (fairLaunch: FairLaunchAccount | undefined): boolean => {
   if (
     !fairLaunch?.lottery.data ||
     !fairLaunch?.lottery.data.length ||
@@ -274,10 +270,7 @@ const Home = (props: HomeProps) => {
     try {
       setIsMinting(true);
       if (wallet.connected && candyMachine?.program && wallet.publicKey) {
-        if (
-          fairLaunch?.ticket.data?.state.unpunched &&
-          isWinner(fairLaunch, fairLaunchBalance)
-        ) {
+        if (fairLaunch?.ticket.data?.state.unpunched && isWinner(fairLaunch)) {
           await onPunchTicket();
         }
 
@@ -863,7 +856,7 @@ const Home = (props: HomeProps) => {
 
                 {[Phase.Phase3].includes(phase) && (
                   <>
-                    {isWinner(fairLaunch, fairLaunchBalance) && (
+                    {isWinner(fairLaunch) && (
                       <MintButton
                         onClick={onPunchTicket}
                         variant="contained"
@@ -875,7 +868,7 @@ const Home = (props: HomeProps) => {
                       </MintButton>
                     )}
 
-                    {!isWinner(fairLaunch, fairLaunchBalance) && (
+                    {!isWinner(fairLaunch) && (
                       <MintButton
                         onClick={onRefundTicket}
                         variant="contained"
@@ -894,7 +887,8 @@ const Home = (props: HomeProps) => {
                 {phase === Phase.Phase4 && (
                   <>
                     {(!fairLaunch ||
-                      isWinner(fairLaunch, fairLaunchBalance)) && (
+                      isWinner(fairLaunch) ||
+                      fairLaunchBalance > 0) && (
                       <MintContainer>
                         <MintButton
                           disabled={
@@ -921,7 +915,7 @@ const Home = (props: HomeProps) => {
                       </MintContainer>
                     )}
 
-                    {!isWinner(fairLaunch, fairLaunchBalance) && (
+                    {!isWinner(fairLaunch) && (
                       <MintButton
                         onClick={onRefundTicket}
                         variant="contained"
@@ -965,7 +959,8 @@ const Home = (props: HomeProps) => {
                     if (
                       !fairLaunch ||
                       phase === Phase.Lottery ||
-                      isWinner(fairLaunch, fairLaunchBalance)
+                      isWinner(fairLaunch) ||
+                      fairLaunchBalance > 0
                     ) {
                       setRefundExplainerOpen(true);
                     } else {
