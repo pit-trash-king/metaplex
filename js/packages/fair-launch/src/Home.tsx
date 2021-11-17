@@ -583,7 +583,7 @@ const Home = (props: HomeProps) => {
           justifyContent: 'center',
         }}
       >
-        <img src="rockslogo.jpg" style={{ height: '200px', width: '200px' }} />
+        <img src="littlerocks-text-white.png" style={{ height: '200px' }} />
       </Container>
       <Container
         maxWidth="xs"
