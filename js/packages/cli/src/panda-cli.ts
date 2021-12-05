@@ -194,49 +194,83 @@ programCommand('update_levels_on_chain')
             );
             for (let j = 0; j < metadataAccounts.length; j++) {
               const metadata = decodeMetadata(metadataAccounts[j].account.data);
-
-              const newLink = await arweaveUpload(
-                walletKeyPair,
-                anchorProgram,
-                env,
-                fs.readFileSync(
+              try {
+                const newJSON = fs.readFileSync(
                   'replacements/' + metadataAccounts[j].publicKey + '.json',
-                ), // TODO rename metadataBuffer
-              );
-              const newData = new Data({
-                ...metadata.data,
-                creators: metadata.data.creators.map(
-                  c =>
-                    new Creator({
-                      ...c,
-                      address: new PublicKey(c.address).toBase58(),
-                    }),
-                ),
-                uri: newLink,
-              });
+                );
+                const parsedJ = JSON.parse(newJSON);
+                const existing = parsedJ.attributes.find(
+                  a => a.trait_type == '❤️',
+                );
+                const uriData = await fetch(metadata.data.uri);
 
-              const value = new UpdateMetadataArgs({
-                data: newData,
-                updateAuthority: walletKeyPair.publicKey.toBase58(),
-                primarySaleHappened: null,
-              });
-              const txnData = Buffer.from(serialize(METADATA_SCHEMA, value));
-              console.log("Writing to update", metadataAccounts[j].publicKey.toBase58())
-              await sendTransactionWithRetryWithKeypair(
-                anchorProgram.provider.connection,
-                walletKeyPair,
-                [
-                  createUpdateMetadataInstruction(
-                    metadataAccounts[j].publicKey,
-                    walletKeyPair.publicKey,
-                    txnData,
-                  ),
-                ],
-                [],
-                'single',
-              );
+                const body = await uriData.text();
+                const parsed = JSON.parse(body);
+                let existingAttr = parsed.attributes.find(
+                  a => a.trait_type == '❤️',
+                );
+                if (
+                  !existing ||
+                  !existingAttr ||
+                  existing.value != existingAttr.value
+                ) {
+                  const newLink = await arweaveUpload(
+                    walletKeyPair,
+                    anchorProgram,
+                    env,
+                    newJSON, // TODO rename metadataBuffer
+                  );
+                  const newData = new Data({
+                    ...metadata.data,
+                    creators: metadata.data.creators.map(
+                      c =>
+                        new Creator({
+                          ...c,
+                          address: new PublicKey(c.address).toBase58(),
+                        }),
+                    ),
+                    uri: newLink,
+                  });
+
+                  const value = new UpdateMetadataArgs({
+                    data: newData,
+                    updateAuthority: walletKeyPair.publicKey.toBase58(),
+                    primarySaleHappened: null,
+                  });
+                  const txnData = Buffer.from(
+                    serialize(METADATA_SCHEMA, value),
+                  );
+                  console.log(
+                    'Writing to update',
+                    metadataAccounts[j].publicKey.toBase58(),
+                  );
+
+                  await sendTransactionWithRetryWithKeypair(
+                    anchorProgram.provider.connection,
+                    walletKeyPair,
+                    [
+                      createUpdateMetadataInstruction(
+                        metadataAccounts[j].publicKey,
+                        walletKeyPair.publicKey,
+                        txnData,
+                      ),
+                    ],
+                    [],
+                    'single',
+                  );
+                } else {
+                  console.log(
+                    'Skipping, already done',
+                    metadataAccounts[j].publicKey.toBase58(),
+                  );
+                }
+              } catch (e) {
+                console.error(e);
+                console.log('done');
+              }
             }
           }
+          return true;
         },
       ),
     );
@@ -269,13 +303,13 @@ programCommand('update_levels')
     console.log('Level limits', levelMeter);
 
     const beforekeys = Object.keys(parsedAges);
-    const keys = []
-    for(let i = 0; i < beforekeys.length; i++) {
-        if(!fs.existsSync('replacements/' + beforekeys[i] + '.json')) {
-            keys.push(beforekeys[i])
-        }
+    const keys = [];
+    for (let i = 0; i < beforekeys.length; i++) {
+      if (!fs.existsSync('replacements/' + beforekeys[i] + '.json')) {
+        keys.push(beforekeys[i]);
+      }
     }
-    console.log("Keys to do", keys.length)
+    console.log('Keys to do', keys.length);
     await Promise.all(
       chunks(Array.from(Array(keys.length).keys()), 1000).map(
         async allIndexesInSlice => {
@@ -306,7 +340,7 @@ programCommand('update_levels')
               let myLevel = levels; // max default
               const val = parsedAges[metadataAccounts[j].publicKey.toBase58()];
               if (val) {
-                for (let k = 0; levelMeter.length; k++) {
+                for (let k = 0; k < levelMeter.length; k++) {
                   const currLevel = levelMeter[k];
                   if (currLevel > val) {
                     myLevel = k + 1;
@@ -316,7 +350,7 @@ programCommand('update_levels')
               }
 
               existingAttr.value = myLevel;
-              console.log("Writing", metadataAccounts[j].publicKey.toBase58())
+              console.log('Writing', metadataAccounts[j].publicKey.toBase58());
               fs.writeFileSync(
                 'replacements/' +
                   metadataAccounts[j].publicKey.toBase58() +
@@ -429,6 +463,60 @@ programCommand('pull_chain_data')
     );
     console.log('Done');
     fs.writeFileSync('current-ages.json', JSON.stringify(hash));
+  });
+
+programCommand('unique_wallets')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadCandyProgram(walletKeyPair, env, rpcUrl);
+    const candyMachine = 'CLErvyrMpi66RAxNV2wveSi25NxHb8G383MSVuGDgZzp';
+    const parsedWallets = {};
+    const metadataByCandyMachine = await getAccountsByCreatorAddress(
+      candyMachine,
+      anchorProgram.provider.connection,
+    );
+
+    await Promise.all(
+      chunks(Array.from(Array(metadataByCandyMachine.length).keys()), 1000).map(
+        async allIndexesInSlice => {
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const metadata = metadataByCandyMachine[allIndexesInSlice[i]];
+            const mint = new PublicKey(metadata[0].mint);
+            const currentAccounts =
+              await anchorProgram.provider.connection.getTokenLargestAccounts(
+                mint,
+              );
+            const holding = currentAccounts.value.find(a => a.amount == '1');
+            const account =
+              await anchorProgram.provider.connection.getAccountInfo(
+                holding.address,
+              );
+
+            const asToken = deserializeAccount(account.data);
+
+            console.log('Found holding address', asToken.owner.toBase58());
+            if (!parsedWallets[asToken.owner.toBase58()])
+              parsedWallets[asToken.owner.toBase58()] = 1;
+            else parsedWallets[asToken.owner.toBase58()]++;
+
+            if (i % 10 == 0) {
+              fs.writeFileSync(
+                'current-wallets.json',
+                JSON.stringify(parsedWallets),
+              );
+            }
+          }
+        },
+      ),
+    );
+    console.log('Done');
+    console.log('Unique count', Object.keys(parsedWallets).length);
+    fs.writeFileSync('current-wallets.json', JSON.stringify(parsedWallets));
   });
 function programCommand(name: string) {
   return program
