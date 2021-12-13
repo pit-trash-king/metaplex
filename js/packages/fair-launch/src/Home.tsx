@@ -338,7 +338,7 @@ const Home = (props: HomeProps) => {
           console.log(e);
         }
       } else {
-        console.log('No candy machine detected in configuration.');
+        console.log('No candy machine detected in configuration. ');
       }
     })();
   }, [
@@ -477,6 +477,19 @@ const Home = (props: HomeProps) => {
 
   return (
     <Container style={{ marginTop: 100 }}>
+      <Container
+        maxWidth="xs"
+        style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+        }}
+      >
+        <h1>People Nipple Cats</h1>
+        <h2>Seriously, user a burner wallet.</h2>
+        <h3>Mint price 0.01 SOL. Let's test some f-in Candy Machines.</h3>
+      </Container>
       {fairLaunch && (
         <AntiRug
           fairLaunch={fairLaunch}
