@@ -482,13 +482,14 @@ const Home = (props: HomeProps) => {
         style={{
           position: 'relative',
           display: 'flex',
-          flexDirection: 'row',
+          flexDirection: 'column',
           justifyContent: 'center',
+          color: 'white',
         }}
       >
         <h1>People Nipple Cats</h1>
-        <h2>Seriously, user a burner wallet.</h2>
-        <h3>Mint price 0.01 SOL. Let's test some f-in Candy Machines.</h3>
+        <h2>Seriously, use a burner wallet. This is live alpha software.</h2>
+        <h3>Mint price 0.01 SOL. Let's test some #$!@in' Candy Machines.</h3>
       </Container>
       {fairLaunch && (
         <AntiRug
