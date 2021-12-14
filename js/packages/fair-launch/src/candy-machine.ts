@@ -323,9 +323,7 @@ export const mintOneToken = async (
       candyMachine.state.whitelistMintSettings.mint,
     );
 
-    const whitelistToken = (
-      await getAtaForMint(mint, userPayingAccountAddress)
-    )[0];
+    const whitelistToken = (await getAtaForMint(mint, payer))[0];
     remainingAccounts.push({
       pubkey: whitelistToken,
       isWritable: true,
@@ -356,7 +354,7 @@ export const mintOneToken = async (
             TOKEN_PROGRAM_ID,
             whitelistToken,
             whitelistBurnAuthority.publicKey,
-            userPayingAccountAddress,
+            payer,
             [],
             1,
           ),
@@ -365,7 +363,7 @@ export const mintOneToken = async (
           Token.createRevokeInstruction(
             TOKEN_PROGRAM_ID,
             whitelistToken,
-            userPayingAccountAddress,
+            payer,
             [],
           ),
         );
@@ -419,13 +417,13 @@ export const mintOneToken = async (
       accounts: {
         candyMachine: candyMachineAddress,
         candyMachineCreator,
-        payer: userPayingAccountAddress,
+        payer: payer,
         wallet: candyMachine.state.treasury,
         mint: mint.publicKey,
         metadata: metadataAddress,
         masterEdition,
-        mintAuthority: userPayingAccountAddress,
-        updateAuthority: userPayingAccountAddress,
+        mintAuthority: payer,
+        updateAuthority: payer,
         tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
