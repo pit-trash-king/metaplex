@@ -8,6 +8,7 @@ import fetch from 'node-fetch';
 import {
   chunks,
   fromUTF8Array,
+  generateRandomSet,
   parseDate,
   parsePrice,
 } from './helpers/various';
@@ -68,6 +69,96 @@ program.version('0.0.2');
 if (!fs.existsSync(CACHE_PATH)) {
   fs.mkdirSync(CACHE_PATH);
 }
+
+const TIERS = {
+  1: {
+    HEAD: {
+      'Rudolph Headband': 0.3,
+      'Xmas Lights': 0.3,
+      'Xmas Crown': 0.2,
+      'Santa Hat': 0.1,
+      Original: 0.1,
+    },
+    BODY: {
+      'Santa Jacket': 0.3,
+      'Elf Jacket': 0.7,
+      Original: 0,
+    },
+  },
+  2: {
+    HEAD: {
+      'Rudolph Headband': 0.2,
+      'Xmas Lights': 0.2,
+      'Xmas Crown': 0.2,
+      'Santa Hat': 0.1,
+      Original: 0.3,
+    },
+    BODY: {
+      'Santa Jacket': 0.2,
+      'Elf Jacket': 0.6,
+      Original: 0.2,
+    },
+  },
+  3: {
+    HEAD: {
+      'Rudolph Headband': 0.2,
+      'Xmas Lights': 0.2,
+      'Xmas Crown': 0.15,
+      'Santa Hat': 0.05,
+      Original: 0.4,
+    },
+    BODY: {
+      'Santa Jacket': 0.2,
+      'Elf Jacket': 0.5,
+      Original: 0.3,
+    },
+  },
+
+  4: {
+    HEAD: {
+      'Rudolph Headband': 0.2,
+      'Xmas Lights': 0.2,
+      'Xmas Crown': 0,
+      'Santa Hat': 0,
+      Original: 0.6,
+    },
+    BODY: {
+      'Santa Jacket': 0.1,
+      'Elf Jacket': 0.4,
+      Original: 0.5,
+    },
+  },
+
+  5: {
+    HEAD: {
+      'Rudolph Headband': 0.1,
+      'Xmas Lights': 0.1,
+      'Xmas Crown': 0,
+      'Santa Hat': 0,
+      Original: 0.8,
+    },
+    BODY: {
+      'Santa Jacket': 0.1,
+      'Elf Jacket': 0.3,
+      Original: 0.6,
+    },
+  },
+
+  6: {
+    HEAD: {
+      'Rudolph Headband': 0.05,
+      'Xmas Lights': 0.05,
+      'Xmas Crown': 0,
+      'Santa Hat': 0,
+      Original: 0.9,
+    },
+    BODY: {
+      'Santa Jacket': 0.05,
+      'Elf Jacket': 0.15,
+      Original: 0.8,
+    },
+  },
+};
 
 log.setLevel(log.levels.INFO);
 const ARWEAVE_UPLOAD_ENDPOINT =
@@ -375,10 +466,17 @@ programCommand('pull_chain_data')
     const candyMachine = 'CLErvyrMpi66RAxNV2wveSi25NxHb8G383MSVuGDgZzp';
     const currentAgesText = fs.readFileSync('current-ages.json');
     const parsedAges = JSON.parse(currentAgesText.toString());
-    const metadataByCandyMachine = await getAccountsByCreatorAddress(
-      candyMachine,
-      anchorProgram.provider.connection,
-    );
+    console.log('Updated');
+    const metadataByCandyMachine = [
+      ...(await getAccountsByCreatorAddress(
+        candyMachine,
+        anchorProgram.provider.connection,
+      )),
+      ...(await getAccountsByCreatorAddress(
+        'HHGsTSzwPpYMYDGgUqssgAsMZMsYbshgrhMge8Ypgsjx',
+        anchorProgram.provider.connection,
+      )),
+    ];
 
     const hash = parsedAges;
     const keysNotPresent = _.difference(
@@ -465,6 +563,416 @@ programCommand('pull_chain_data')
     fs.writeFileSync('current-ages.json', JSON.stringify(hash));
   });
 
+programCommand('pull_chain_result_set')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadCandyProgram(walletKeyPair, env, rpcUrl);
+    const candyMachine = 'CLErvyrMpi66RAxNV2wveSi25NxHb8G383MSVuGDgZzp';
+    const currentAgesText = fs.readFileSync('sets.json');
+    const parsedAges = JSON.parse(currentAgesText.toString());
+    const metadataByCandyMachine = [
+      ...(await getAccountsByCreatorAddress(
+        candyMachine,
+        anchorProgram.provider.connection,
+      )),
+      ...(await getAccountsByCreatorAddress(
+        'HHGsTSzwPpYMYDGgUqssgAsMZMsYbshgrhMge8Ypgsjx',
+        anchorProgram.provider.connection,
+      )),
+    ];
+
+    const keysNotPresent = _.difference(
+      metadataByCandyMachine.map(m => m[1]),
+      parsedAges.map(p => p.metadata),
+    );
+    console.log('Key length', keysNotPresent.length);
+    await Promise.all(
+      chunks(Array.from(Array(keysNotPresent.length).keys()), 1000).map(
+        async allIndexesInSlice => {
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const metadata = metadataByCandyMachine.find(
+              m => m[1] == keysNotPresent[allIndexesInSlice[i]],
+            );
+            const mint = new PublicKey(metadata[0].mint);
+            const currentAccounts =
+              await anchorProgram.provider.connection.getTokenLargestAccounts(
+                mint,
+              );
+            const holding = currentAccounts.value.find(a => a.amount == '1');
+            const token =
+              await anchorProgram.provider.connection.getAccountInfo(
+                holding.address,
+              );
+            const parsedToken = deserializeAccount(token.data);
+            //console.log('Found holding address', parsedToken.owner.toBase58());
+            const attributesResp = await fetch(metadata[0].data.uri);
+
+            const json = JSON.parse(await attributesResp.text());
+            const toStore: any = {};
+            toStore.traits = json.attributes.reduce((h, entry) => {
+              h[entry.trait_type] = entry.value;
+              return h;
+            }, {});
+            toStore.id = json.name;
+            toStore.metadata = metadata[1];
+            toStore.originalMetadata = json;
+            toStore.owner = parsedToken.owner.toBase58();
+            parsedAges.push(toStore);
+
+            if (i % 10 == 0) {
+              fs.writeFileSync('sets.json', JSON.stringify(parsedAges));
+            }
+          }
+        },
+      ),
+    );
+    console.log('Done');
+    fs.writeFileSync('sets.json', JSON.stringify(parsedAges));
+  });
+
+programCommand('pull_chain_rug_set')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadCandyProgram(walletKeyPair, env, rpcUrl);
+    const fairLaunch = 'BHRFPSHHtLqjbcvVCmGrCjgbUagwnKDxp4CbUgoED3tT';
+    const currentAgesText = fs.readFileSync('rugs.json');
+    const parsedAges = JSON.parse(currentAgesText.toString());
+    const metadataByCandyMachine = [
+      ...(await getAccountsByCreatorAddress(
+        fairLaunch,
+        anchorProgram.provider.connection,
+      )),
+    ];
+
+    const keysNotPresent = _.difference(
+      metadataByCandyMachine.map(m => m[1]),
+      parsedAges.map(p => p.metadata),
+    );
+    console.log('Key length', keysNotPresent.length);
+    await Promise.all(
+      chunks(Array.from(Array(keysNotPresent.length).keys()), 1000).map(
+        async allIndexesInSlice => {
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const metadata = metadataByCandyMachine.find(
+              m => m[1] == keysNotPresent[allIndexesInSlice[i]],
+            );
+            const mint = new PublicKey(metadata[0].mint);
+            const currentAccounts =
+              await anchorProgram.provider.connection.getTokenLargestAccounts(
+                mint,
+              );
+            const holding = currentAccounts.value.find(a => a.amount == '1');
+            if (holding) {
+              const token =
+                await anchorProgram.provider.connection.getAccountInfo(
+                  holding.address,
+                );
+              const parsedToken = deserializeAccount(token.data);
+              //console.log('Found holding address', parsedToken.owner.toBase58());
+              const attributesResp = await fetch(metadata[0].data.uri);
+
+              const json = JSON.parse(await attributesResp.text());
+              const toStore = json.attributes.reduce((h, entry) => {
+                h[entry.trait_type] = entry.value;
+                return h;
+              }, {});
+              toStore.id = json.name;
+              toStore.metadata = metadata[1];
+              toStore.owner = parsedToken.owner.toBase58();
+              parsedAges.push(toStore);
+            }
+            if (i % 10 == 0) {
+              fs.writeFileSync('rugs.json', JSON.stringify(parsedAges));
+            }
+          }
+        },
+      ),
+    );
+    console.log('Done');
+    fs.writeFileSync('rugs.json', JSON.stringify(parsedAges));
+  });
+
+programCommand('check_new_result_set')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const currentAgesText2 = fs.readFileSync('new_sets.json');
+    const newSets = JSON.parse(currentAgesText2.toString());
+
+    const stats = {
+      1: {
+        flippedHearts: 0,
+        count: 0,
+        HEAD: {
+          'Rudolph Headband': 0,
+          'Xmas Lights': 0,
+          'Xmas Crown': 0,
+          'Santa Hat': 0,
+          Original: 0,
+        },
+        BODY: {
+          'Santa Jacket': 0,
+          'Elf Jacket': 0,
+          Original: 0,
+        },
+      },
+      2: {
+        flippedHearts: 0,
+        count: 0,
+        HEAD: {
+          'Rudolph Headband': 0,
+          'Xmas Lights': 0,
+          'Xmas Crown': 0,
+          'Santa Hat': 0,
+          Original: 0,
+        },
+        BODY: {
+          'Santa Jacket': 0,
+          'Elf Jacket': 0,
+          Original: 0,
+        },
+      },
+      3: {
+        flippedHearts: 0,
+        count: 0,
+        HEAD: {
+          'Rudolph Headband': 0,
+          'Xmas Lights': 0,
+          'Xmas Crown': 0,
+          'Santa Hat': 0,
+          Original: 0,
+        },
+        BODY: {
+          'Santa Jacket': 0,
+          'Elf Jacket': 0,
+          Original: 0,
+        },
+      },
+      4: {
+        flippedHearts: 0,
+        count: 0,
+        HEAD: {
+          'Rudolph Headband': 0,
+          'Xmas Lights': 0,
+          'Xmas Crown': 0,
+          'Santa Hat': 0,
+          Original: 0,
+        },
+        BODY: {
+          'Santa Jacket': 0,
+          'Elf Jacket': 0,
+          Original: 0,
+        },
+      },
+      5: {
+        flippedHearts: 0,
+        count: 0,
+        HEAD: {
+          'Rudolph Headband': 0,
+          'Xmas Lights': 0,
+          'Xmas Crown': 0,
+          'Santa Hat': 0,
+          Original: 0,
+        },
+        BODY: {
+          'Santa Jacket': 0,
+          'Elf Jacket': 0,
+          Original: 0,
+        },
+      },
+      6: {
+        flippedHearts: 0,
+        count: 0,
+        HEAD: {
+          'Rudolph Headband': 0,
+          'Xmas Lights': 0,
+          'Xmas Crown': 0,
+          'Santa Hat': 0,
+          Original: 0,
+        },
+        BODY: {
+          'Santa Jacket': 0,
+          'Elf Jacket': 0,
+          Original: 0,
+        },
+      },
+    };
+
+    for (let i = 0; i < newSets.length; i++) {
+      const set = newSets[i];
+      const tier = stats[set.moddedHearts];
+      if (set.moddedHearts != set.traits['❤️']) tier.flippedHearts++;
+      tier.HEAD[set.newTraits.HEAD]++;
+      tier.BODY[set.newTraits.BODY]++;
+    }
+
+    for (let i = 1; i < 7; i++) {
+      const tier = stats[i];
+      tier.flippedHearts = tier.flippedHearts / tier.count;
+      const headKeys = Object.keys(tier.HEAD);
+      headKeys.forEach(h => (tier.HEAD[h] /= tier.count));
+      const bodyKeys = Object.keys(tier.BODY);
+      bodyKeys.forEach(h => (tier.BODY[h] /= tier.count));
+    }
+
+    console.log('Stats', stats);
+  });
+
+programCommand('export_result_set_to_psd')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const currentAgesText2 = fs.readFileSync('new_sets.json');
+    const newSets = JSON.parse(currentAgesText2.toString());
+    const forPSD = [];
+    for (let i = 0; i < newSets.length; i++) {
+      const set = newSets[i];
+      const newTraits = set.newTraits;
+      let naughty = false;
+      if (newTraits.HEAD == 'Original' && newTraits.BODY == 'Original') {
+        naughty = true;
+      }
+      if (newTraits.HEAD == 'Original') newTraits.HEAD = set.traits.HEAD;
+      if (newTraits.BODY == 'Original') newTraits.BODY = set.traits.BODY;
+
+      const traitsForLayers = { ...newTraits };
+      delete traitsForLayers['❤️'];
+
+      if (naughty) newTraits.Naughty = 'True';
+      else newTraits.naughty = 'False';
+
+      const newMetadata = set.originalMetadata;
+      let head = newMetadata.attributes.find(a => (a.trait_type = 'HEAD'));
+      let body = newMetadata.attributes.find(a => (a.trait_type = 'BODY'));
+      let heart = newMetadata.attributes.find(a => (a.trait_type = '❤️'));
+      heart.trait_type = 'Naughty';
+      heart.value = newTraits.Naughty;
+      head.value = newTraits.HEAD;
+      body.value = newTraits.BODY;
+
+      fs.writeFileSync(
+        'xmas/' + i.toString() + '.json',
+        JSON.stringify(newMetadata),
+      );
+      forPSD.push(traitsForLayers);
+    }
+
+    fs.writeFileSync('xmas_set_final.json', JSON.stringify(forPSD));
+  });
+
+programCommand('create_new_result_set')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const currentAgesText = fs.readFileSync('sets.json');
+    const currentAgesText2 = fs.readFileSync('new_sets.json');
+    const currentAgesText3 = fs.readFileSync('rugs.json');
+    const parsedSets = JSON.parse(currentAgesText.toString());
+    const newSets = JSON.parse(currentAgesText2.toString());
+    const rugs = JSON.parse(currentAgesText3.toString());
+
+    const rugsByOwner = {};
+    rugs.map(r => {
+      if (!rugsByOwner[r.owner])
+        rugsByOwner[r.owner] = {
+          Black: 0,
+          Green: 0,
+          Gold: 0,
+          Blue: 0,
+          Red: 0,
+          Purple: 0,
+        };
+      const type = r['background'];
+      r[type]++;
+    });
+    const keysNotPresent = _.difference(
+      newSets.map(m => m.metadata),
+      parsedSets.map(p => p.metadata),
+    );
+    console.log('Key length', keysNotPresent.length);
+    await Promise.all(
+      chunks(Array.from(Array(keysNotPresent.length).keys()), 1000).map(
+        async allIndexesInSlice => {
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const currSet = parsedSets[allIndexesInSlice[i]];
+            const rugs = rugsByOwner[currSet.owner];
+            let completeSet =
+              rugs.Black > 0 &&
+              rugs.Green > 0 &&
+              rugs.Gold > 0 &&
+              rugs.Blue > 0 &&
+              rugs.Red > 0 &&
+              rugs.Purple > 0;
+
+            let partialSet =
+              rugs.Black +
+                rugs.Green +
+                rugs.Gold +
+                rugs.Blue +
+                rugs.Red +
+                rugs.Purple >=
+              3;
+
+            let hearts = currSet.traits['❤️'];
+
+            if (completeSet) hearts -= 2;
+            else if (partialSet) hearts--;
+            hearts = Math.max(1, hearts);
+
+            const probabilityTier = TIERS[hearts];
+            const newSet = generateRandomSet(probabilityTier, {});
+            currSet.moddedHearts = hearts;
+            currSet.newTraits = { ...currSet.traits, ...newSet };
+            console.log(
+              'For',
+              currSet.metadata,
+              'holder',
+              currSet.owner,
+              'has complete set?',
+              completeSet,
+              'partial?',
+              partialSet,
+              'original hearts is',
+              currSet['❤️'],
+              'eventual hearts is',
+              hearts,
+              'new set is',
+              newSet,
+              rugs,
+            );
+            newSets.push(currSet);
+            if (i % 10 == 0) {
+              fs.writeFileSync('new_sets.json', JSON.stringify(newSets));
+            }
+          }
+        },
+      ),
+    );
+    console.log('Done');
+    fs.writeFileSync('new_sets.json', JSON.stringify(newSets));
+  });
+
 programCommand('unique_wallets')
   .option(
     '-r, --rpc-url <string>',
@@ -476,10 +984,16 @@ programCommand('unique_wallets')
     const anchorProgram = await loadCandyProgram(walletKeyPair, env, rpcUrl);
     const candyMachine = 'CLErvyrMpi66RAxNV2wveSi25NxHb8G383MSVuGDgZzp';
     const parsedWallets = {};
-    const metadataByCandyMachine = await getAccountsByCreatorAddress(
-      candyMachine,
-      anchorProgram.provider.connection,
-    );
+    const metadataByCandyMachine = [
+      ...(await getAccountsByCreatorAddress(
+        candyMachine,
+        anchorProgram.provider.connection,
+      )),
+      ...(await getAccountsByCreatorAddress(
+        'C9uGSpNQ7PSCT5zr7ULBm8VjaXQ2oHvJtr836fqD1A9N',
+        anchorProgram.provider.connection,
+      )),
+    ];
 
     await Promise.all(
       chunks(Array.from(Array(metadataByCandyMachine.length).keys()), 1000).map(
@@ -492,18 +1006,19 @@ programCommand('unique_wallets')
                 mint,
               );
             const holding = currentAccounts.value.find(a => a.amount == '1');
-            const account =
-              await anchorProgram.provider.connection.getAccountInfo(
-                holding.address,
-              );
+            if (holding) {
+              const account =
+                await anchorProgram.provider.connection.getAccountInfo(
+                  holding.address,
+                );
 
-            const asToken = deserializeAccount(account.data);
+              const asToken = deserializeAccount(account.data);
 
-            console.log('Found holding address', asToken.owner.toBase58());
-            if (!parsedWallets[asToken.owner.toBase58()])
-              parsedWallets[asToken.owner.toBase58()] = 1;
-            else parsedWallets[asToken.owner.toBase58()]++;
-
+              console.log('Found holding address', asToken.owner.toBase58());
+              if (!parsedWallets[asToken.owner.toBase58()])
+                parsedWallets[asToken.owner.toBase58()] = 1;
+              else parsedWallets[asToken.owner.toBase58()]++;
+            }
             if (i % 10 == 0) {
               fs.writeFileSync(
                 'current-wallets.json',
