@@ -73,89 +73,89 @@ if (!fs.existsSync(CACHE_PATH)) {
 const TIERS = {
   1: {
     HEAD: {
-      'Rudolph Headband': 0.3,
-      'Xmas Lights': 0.3,
-      'Xmas Crown': 0.2,
-      'Santa Hat': 0.1,
-      Original: 0.1,
+      'Rudolph Headband': 30,
+      'Xmas Lights': 30,
+      'Xmas Crown': 20,
+      'Santa Hat': 10,
+      Original: 10,
     },
     BODY: {
-      'Santa Jacket': 0.3,
-      'Elf Jacket': 0.7,
+      'Santa Jacket': 30,
+      'Elf Jacket': 70,
       Original: 0,
     },
   },
   2: {
     HEAD: {
-      'Rudolph Headband': 0.2,
-      'Xmas Lights': 0.2,
-      'Xmas Crown': 0.2,
-      'Santa Hat': 0.1,
-      Original: 0.3,
+      'Rudolph Headband': 20,
+      'Xmas Lights': 20,
+      'Xmas Crown': 20,
+      'Santa Hat': 10,
+      Original: 30,
     },
     BODY: {
-      'Santa Jacket': 0.2,
-      'Elf Jacket': 0.6,
-      Original: 0.2,
+      'Santa Jacket': 20,
+      'Elf Jacket': 60,
+      Original: 20,
     },
   },
   3: {
     HEAD: {
-      'Rudolph Headband': 0.2,
-      'Xmas Lights': 0.2,
-      'Xmas Crown': 0.15,
-      'Santa Hat': 0.05,
-      Original: 0.4,
+      'Rudolph Headband': 20,
+      'Xmas Lights': 20,
+      'Xmas Crown': 15,
+      'Santa Hat': 5,
+      Original: 40,
     },
     BODY: {
-      'Santa Jacket': 0.2,
-      'Elf Jacket': 0.5,
-      Original: 0.3,
+      'Santa Jacket': 20,
+      'Elf Jacket': 50,
+      Original: 30,
     },
   },
 
   4: {
     HEAD: {
-      'Rudolph Headband': 0.2,
-      'Xmas Lights': 0.2,
+      'Rudolph Headband': 20,
+      'Xmas Lights': 20,
       'Xmas Crown': 0,
       'Santa Hat': 0,
-      Original: 0.6,
+      Original: 60,
     },
     BODY: {
-      'Santa Jacket': 0.1,
-      'Elf Jacket': 0.4,
-      Original: 0.5,
+      'Santa Jacket': 10,
+      'Elf Jacket': 40,
+      Original: 50,
     },
   },
 
   5: {
     HEAD: {
-      'Rudolph Headband': 0.1,
-      'Xmas Lights': 0.1,
+      'Rudolph Headband': 10,
+      'Xmas Lights': 10,
       'Xmas Crown': 0,
       'Santa Hat': 0,
-      Original: 0.8,
+      Original: 80,
     },
     BODY: {
-      'Santa Jacket': 0.1,
-      'Elf Jacket': 0.3,
-      Original: 0.6,
+      'Santa Jacket': 10,
+      'Elf Jacket': 30,
+      Original: 60,
     },
   },
 
   6: {
     HEAD: {
-      'Rudolph Headband': 0.05,
-      'Xmas Lights': 0.05,
+      'Rudolph Headband': 5,
+      'Xmas Lights': 5,
       'Xmas Crown': 0,
       'Santa Hat': 0,
-      Original: 0.9,
+      Original: 90,
     },
     BODY: {
-      'Santa Jacket': 0.05,
-      'Elf Jacket': 0.15,
-      Original: 0.8,
+      'Santa Jacket': 5,
+      'Elf Jacket': 15,
+      Original: 80,
     },
   },
 };
@@ -818,6 +818,7 @@ programCommand('check_new_result_set')
       if (set.moddedHearts != set.traits['❤️']) tier.flippedHearts++;
       tier.HEAD[set.newTraits.HEAD]++;
       tier.BODY[set.newTraits.BODY]++;
+      tier.count++;
     }
 
     for (let i = 1; i < 7; i++) {
@@ -854,16 +855,21 @@ programCommand('export_result_set_to_psd')
 
       const traitsForLayers = { ...newTraits };
       delete traitsForLayers['❤️'];
+      delete traitsForLayers['EXALTED_STAT'];
 
-      if (naughty) newTraits.Naughty = 'True';
-      else newTraits.naughty = 'False';
+      if (naughty) {
+        newTraits.Naughty = 'True';
+      } else {
+        newTraits.Naughty = 'False';
+      }
 
       const newMetadata = set.originalMetadata;
-      let head = newMetadata.attributes.find(a => (a.trait_type = 'HEAD'));
-      let body = newMetadata.attributes.find(a => (a.trait_type = 'BODY'));
-      let heart = newMetadata.attributes.find(a => (a.trait_type = '❤️'));
+      let head = newMetadata.attributes.find(a => a.trait_type == 'HEAD');
+      let body = newMetadata.attributes.find(a => a.trait_type == 'BODY');
+      let heart = newMetadata.attributes.find(a => a.trait_type == '❤️');
       heart.trait_type = 'Naughty';
       heart.value = newTraits.Naughty;
+
       head.value = newTraits.HEAD;
       body.value = newTraits.BODY;
 
@@ -904,12 +910,14 @@ programCommand('create_new_result_set')
           Purple: 0,
         };
       const type = r['background'];
-      r[type]++;
+
+      rugsByOwner[r.owner][type]++;
     });
     const keysNotPresent = _.difference(
-      newSets.map(m => m.metadata),
       parsedSets.map(p => p.metadata),
+      newSets.map(m => m.metadata),
     );
+    console.log(rugsByOwner);
     console.log('Key length', keysNotPresent.length);
     await Promise.all(
       chunks(Array.from(Array(keysNotPresent.length).keys()), 1000).map(
@@ -918,6 +926,7 @@ programCommand('create_new_result_set')
             const currSet = parsedSets[allIndexesInSlice[i]];
             const rugs = rugsByOwner[currSet.owner];
             let completeSet =
+              rugs &&
               rugs.Black > 0 &&
               rugs.Green > 0 &&
               rugs.Gold > 0 &&
@@ -925,43 +934,46 @@ programCommand('create_new_result_set')
               rugs.Red > 0 &&
               rugs.Purple > 0;
 
-            let partialSet =
-              rugs.Black +
-                rugs.Green +
-                rugs.Gold +
-                rugs.Blue +
-                rugs.Red +
-                rugs.Purple >=
-              3;
+            let partialSet = rugs
+              ? rugs.Black +
+                  rugs.Green +
+                  rugs.Gold +
+                  rugs.Blue +
+                  rugs.Red +
+                  rugs.Purple >=
+                3
+              : false;
 
             let hearts = currSet.traits['❤️'];
 
-            if (completeSet) hearts -= 2;
-            else if (partialSet) hearts--;
-            hearts = Math.max(1, hearts);
+            if (hearts) {
+              if (completeSet) hearts -= 2;
+              else if (partialSet) hearts--;
+              hearts = Math.max(1, hearts);
 
-            const probabilityTier = TIERS[hearts];
-            const newSet = generateRandomSet(probabilityTier, {});
-            currSet.moddedHearts = hearts;
-            currSet.newTraits = { ...currSet.traits, ...newSet };
-            console.log(
-              'For',
-              currSet.metadata,
-              'holder',
-              currSet.owner,
-              'has complete set?',
-              completeSet,
-              'partial?',
-              partialSet,
-              'original hearts is',
-              currSet['❤️'],
-              'eventual hearts is',
-              hearts,
-              'new set is',
-              newSet,
-              rugs,
-            );
-            newSets.push(currSet);
+              const probabilityTier = TIERS[hearts];
+              const newSet = generateRandomSet(probabilityTier, {});
+              currSet.moddedHearts = hearts;
+              currSet.newTraits = { ...currSet.traits, ...newSet };
+              console.log(
+                'For',
+                currSet.metadata,
+                'holder',
+                currSet.owner,
+                'has complete set?',
+                completeSet,
+                'partial?',
+                partialSet,
+                'original hearts is',
+                currSet.traits['❤️'],
+                'eventual hearts is',
+                hearts,
+                'new set is',
+                newSet,
+                rugs,
+              );
+              newSets.push(currSet);
+            }
             if (i % 10 == 0) {
               fs.writeFileSync('new_sets.json', JSON.stringify(newSets));
             }
