@@ -869,6 +869,8 @@ programCommand('export_result_set_to_psd')
       let heart = newMetadata.attributes.find(a => a.trait_type == '❤️');
       heart.trait_type = 'Naughty';
       heart.value = newTraits.Naughty;
+      newMetadata.image = `${i}.png`;
+      newMetadata.properties.files = [{ uri: `${i}.png`, type: 'image/png' }];
 
       head.value = newTraits.HEAD;
       body.value = newTraits.BODY;

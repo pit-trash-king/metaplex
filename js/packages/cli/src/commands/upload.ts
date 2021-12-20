@@ -92,7 +92,7 @@ export async function uploadV2({
   if (!cacheContent.items) {
     cacheContent.items = {};
   } else {
-    existingInCache = Object.keys(cacheContent.items);
+    existingInCache = cacheContent.items;
   }
   const dedupedAssetKeys = getAssetKeysNeedingUpload(existingInCache, files);
   const SIZE = dedupedAssetKeys.length;
@@ -464,7 +464,9 @@ function getAssetKeysNeedingUpload(
     .reduce((acc, assetKey) => {
       const ext = path.extname(assetKey);
       const key = path.basename(assetKey, ext);
+      if (key == '12917') log.debug('Hey', key);
       if (!items[key]?.link && !keyMap[key]) {
+        if (key == '12917') log.debug('FOUNNNDD', items);
         keyMap[key] = true;
         acc.push({ mediaExt: ext, index: key });
       }
