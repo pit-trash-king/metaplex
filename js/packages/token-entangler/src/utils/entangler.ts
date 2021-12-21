@@ -1,4 +1,5 @@
 import {
+  AccountInfo,
   Connection,
   Keypair,
   PublicKey,
@@ -76,6 +77,7 @@ export class Metadata {
   primarySaleHappened: boolean;
   isMutable: boolean;
   editionNonce: number | null;
+  imageUrl: string | null;
 
   // set lazy
   masterEdition?: PublicKey;
@@ -88,6 +90,7 @@ export class Metadata {
     primarySaleHappened: boolean;
     isMutable: boolean;
     editionNonce: number | null;
+    imageUrl: string | null;
   }) {
     this.key = MetadataKey.MetadataV1;
     this.updateAuthority = args.updateAuthority;
@@ -95,6 +98,7 @@ export class Metadata {
     this.data = args.data;
     this.primarySaleHappened = args.primarySaleHappened;
     this.isMutable = args.isMutable;
+    this.imageUrl = null;
     this.editionNonce = args.editionNonce ?? null;
   }
 }
@@ -424,6 +428,12 @@ export const createEntanglement = async (
   return createResult;
 };
 
+export function chunks(array, size) {
+  return Array.apply(0, new Array(Math.ceil(array.length / size))).map(
+    (_, index) => array.slice(index * size, (index + 1) * size),
+  );
+}
+
 export const swapEntanglement = async (
   anchorWallet: anchor.Wallet,
   connection: Connection,
@@ -659,13 +669,29 @@ export const searchEntanglements = async (
     ...searchMintAAccounts,
     ...searchMintBAccounts,
   ];
-  const entanglements = (
-    await Promise.all(
-      entanglementsAccounts.map(account =>
-        anchorProgram.account.entangledPair.fetch(account.pubkey),
-      ),
-    )
-  ).filter(
+
+  let entanglements: any[] = [];
+  await Promise.all(
+    chunks(Array.from(Array(entanglementsAccounts.length).keys()), 100).map(
+      async allIndexesInSlice => {
+        const entanglementData = await getMultipleAccounts(
+          anchorProgram.provider.connection,
+          allIndexesInSlice.map(e =>
+            entanglementsAccounts[e].pubkey.toBase58(),
+          ),
+          'single',
+        );
+        const decodedEntanglementData = entanglementData.array.map(a =>
+          anchorProgram.account.entangledPair.coder.accounts.decode(
+            'EntangledPair',
+            a.data,
+          ),
+        );
+        entanglements = entanglements.concat(decodedEntanglementData);
+      },
+    ),
+  );
+  const reducedEntanglements = entanglements.filter(
     en =>
       //@ts-ignore
       mints.includes(en.mintA.toBase58()) &&
@@ -673,8 +699,110 @@ export const searchEntanglements = async (
       mints.includes(en.mintB.toBase58()),
   );
 
+  let metadata: Metadata[] = [];
+  await Promise.all(
+    chunks(Array.from(Array(reducedEntanglements.length).keys()), 100).map(
+      async allIndexesInSlice => {
+        const metadataAKey: PublicKey[] = [];
+        const metadataBKey: PublicKey[] = [];
+        for (let i = 0; i < allIndexesInSlice.length; i++) {
+          metadataAKey.push(
+            await getMetadata(reducedEntanglements[allIndexesInSlice[i]].mintA),
+          );
+          metadataBKey.push(
+            await getMetadata(reducedEntanglements[allIndexesInSlice[i]].mintB),
+          );
+        }
+        const metadatasA = await getMultipleAccounts(
+          anchorProgram.provider.connection,
+          metadataAKey.map(a => a.toBase58()),
+          'single',
+        );
+        const metadatasB = await getMultipleAccounts(
+          anchorProgram.provider.connection,
+          metadataBKey.map(a => a.toBase58()),
+          'single',
+        );
+        const decodedMetadata = [
+          ...metadatasA.array.map(a => decodeMetadata(a.data)),
+          ...metadatasB.array.map(a => decodeMetadata(a.data)),
+        ];
+        await Promise.all(
+          chunks(Array.from(Array(decodedMetadata.length).keys()), 10).map(
+            async allIndexesInSlice => {
+              for (let j = 0; j < allIndexesInSlice.length; j++) {
+                const json = await fetch(
+                  decodedMetadata[allIndexesInSlice[j]].data.uri,
+                );
+                const decoded = JSON.parse(await json.text());
+                decodedMetadata[allIndexesInSlice[j]].imageUrl = decoded.image;
+              }
+            },
+          ),
+        );
+        metadata = metadata.concat(decodedMetadata);
+      },
+    ),
+  );
+
   // console.log('Found', mint, entanglements.length, 'entanglements');
-  return entanglements;
+  return { entanglements: reducedEntanglements, metadata };
+};
+
+export const getMultipleAccounts = async (
+  connection: any,
+  keys: string[],
+  commitment: string,
+) => {
+  const result = await Promise.all(
+    chunks(keys, 99).map(chunk =>
+      getMultipleAccountsCore(connection, chunk, commitment),
+    ),
+  );
+
+  const array = result
+    .map(
+      a =>
+        //@ts-ignore
+        a.array.map(acc => {
+          if (!acc) {
+            return undefined;
+          }
+
+          const { data, ...rest } = acc;
+          const obj = {
+            ...rest,
+            data: Buffer.from(data[0], 'base64'),
+          } as AccountInfo<Buffer>;
+          return obj;
+        }) as AccountInfo<Buffer>[],
+    )
+    //@ts-ignore
+    .flat();
+  return { keys, array };
+};
+
+const getMultipleAccountsCore = async (
+  connection: any,
+  keys: string[],
+  commitment: string,
+) => {
+  const args = connection._buildArgs([keys], commitment, 'base64');
+
+  const unsafeRes = await connection._rpcRequest('getMultipleAccounts', args);
+  if (unsafeRes.error) {
+    throw new Error(
+      'failed to get info about account ' + unsafeRes.error.message,
+    );
+  }
+
+  if (unsafeRes.result.value) {
+    const array = unsafeRes.result.value as AccountInfo<string[]>[];
+    return { keys, array };
+  }
+
+  // TODO: fix
+  throw new Error();
 };
 
 export const getOwnedNFTMints = async (
@@ -695,7 +823,9 @@ export const getOwnedNFTMints = async (
     .map(val => val.account.data.parsed)
     .filter(
       val =>
-        val.info.tokenAmount.amount != 0 && val.info.tokenAmount.decimals === 0,
+        val.info.tokenAmount.amount != 0 &&
+        val.info.tokenAmount.decimals === 0 &&
+        mints.includes(val.info.mint),
     );
 
   return NFTMints;
