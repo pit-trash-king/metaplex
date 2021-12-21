@@ -7,7 +7,7 @@ import {
 } from '@solana/web3.js';
 
 import { Connection as ContextConnection } from '../contexts';
-
+import { deserializeUnchecked } from 'borsh';
 import * as anchor from '@project-serum/anchor';
 import {
   SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
@@ -26,6 +26,135 @@ export const TOKEN_ENTANGLER = 'token_entangler';
 export const ESCROW = 'escrow';
 export const A = 'A';
 export const B = 'B';
+
+export class Creator {
+  address: PublicKey;
+  verified: number;
+  share: number;
+
+  constructor(args: { address: PublicKey; verified: number; share: number }) {
+    this.address = args.address;
+    this.verified = args.verified;
+    this.share = args.share;
+  }
+}
+
+export class Data {
+  name: string;
+  symbol: string;
+  uri: string;
+  sellerFeeBasisPoints: number;
+  creators: Creator[] | null;
+  constructor(args: {
+    name: string;
+    symbol: string;
+    uri: string;
+    sellerFeeBasisPoints: number;
+    creators: Creator[] | null;
+  }) {
+    this.name = args.name;
+    this.symbol = args.symbol;
+    this.uri = args.uri;
+    this.sellerFeeBasisPoints = args.sellerFeeBasisPoints;
+    this.creators = args.creators;
+  }
+}
+
+export enum MetadataKey {
+  Uninitialized = 0,
+  MetadataV1 = 4,
+  EditionV1 = 1,
+  MasterEditionV1 = 2,
+  MasterEditionV2 = 6,
+  EditionMarker = 7,
+}
+export class Metadata {
+  key: MetadataKey;
+  updateAuthority: PublicKey;
+  mint: PublicKey;
+  data: Data;
+  primarySaleHappened: boolean;
+  isMutable: boolean;
+  editionNonce: number | null;
+
+  // set lazy
+  masterEdition?: PublicKey;
+  edition?: PublicKey;
+
+  constructor(args: {
+    updateAuthority: PublicKey;
+    mint: PublicKey;
+    data: Data;
+    primarySaleHappened: boolean;
+    isMutable: boolean;
+    editionNonce: number | null;
+  }) {
+    this.key = MetadataKey.MetadataV1;
+    this.updateAuthority = args.updateAuthority;
+    this.mint = args.mint;
+    this.data = args.data;
+    this.primarySaleHappened = args.primarySaleHappened;
+    this.isMutable = args.isMutable;
+    this.editionNonce = args.editionNonce ?? null;
+  }
+}
+
+export const METADATA_SCHEMA = new Map<any, any>([
+  [
+    Data,
+    {
+      kind: 'struct',
+      fields: [
+        ['name', 'string'],
+        ['symbol', 'string'],
+        ['uri', 'string'],
+        ['sellerFeeBasisPoints', 'u16'],
+        ['creators', { kind: 'option', type: [Creator] }],
+      ],
+    },
+  ],
+  [
+    Creator,
+    {
+      kind: 'struct',
+      fields: [
+        ['address', 'pubkey'],
+        ['verified', 'u8'],
+        ['share', 'u8'],
+      ],
+    },
+  ],
+  [
+    Metadata,
+    {
+      kind: 'struct',
+      fields: [
+        ['key', 'u8'],
+        ['updateAuthority', 'pubkey'],
+        ['mint', 'pubkey'],
+        ['data', Data],
+        ['primarySaleHappened', 'u8'], // bool
+        ['isMutable', 'u8'], // bool
+        ['editionNonce', { kind: 'option', type: 'u8' }],
+      ],
+    },
+  ],
+]);
+
+// eslint-disable-next-line no-control-regex
+const METADATA_REPLACE = new RegExp('\u0000', 'g');
+
+export const decodeMetadata = (buffer: Buffer): Metadata => {
+  const metadata = deserializeUnchecked(
+    METADATA_SCHEMA,
+    Metadata,
+    buffer,
+  ) as Metadata;
+  metadata.data.name = metadata.data.name.replace(METADATA_REPLACE, '');
+  metadata.data.uri = metadata.data.uri.replace(METADATA_REPLACE, '');
+  metadata.data.symbol = metadata.data.symbol.replace(METADATA_REPLACE, '');
+  return metadata;
+};
 
 export const getTokenEntanglement = async (
   mintA: anchor.web3.PublicKey,
