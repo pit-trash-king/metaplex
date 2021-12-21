@@ -18,7 +18,7 @@ import { Settings } from '../Settings';
 export const Header = ({ narrow }: { narrow: boolean }) => {
   const navs = [
     {
-      href: `/entanglement/`,
+      href: `/`,
       innerNarrow: 'Find Entanglements',
       inner: (
         <img style={{ width: '35px', height: '35px' }} src="/LogoTransp.png" />
