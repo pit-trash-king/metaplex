@@ -76,7 +76,7 @@ function App() {
             <Box height="40px" />
             <Switch>
               <Route path="/entanglement/swap" component={Swap} />
-              <Route path="/entanglement/" component={Wizard} />
+              <Route path="/" component={Wizard} />
             </Switch>
             <Box height="80px" />
           </Box>
