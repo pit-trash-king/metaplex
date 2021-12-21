@@ -88,10 +88,10 @@ export const Wizard = () => {
   return (
     <React.Fragment>
       <Typography variant="h4" color="text.primary" gutterBottom>
-        Search NFT Entanglements{' '}
+        Search Outfits{' '}
       </Typography>
 
-      <p>Searches entanglements of your NFT </p>
+      <p>Searches outfits of your Pandas </p>
 
       <Box
         component="form"
@@ -108,7 +108,7 @@ export const Wizard = () => {
             onClick={async e => await handleSubmit(e)}
             endIcon={<SearchIcon />}
           >
-            Search Entanglements
+            Search Outfits
           </Button>
           {!!!authority && (
             <Alert severity="error" style={{ marginTop: '1rem' }}>
@@ -121,7 +121,7 @@ export const Wizard = () => {
       </Box>
       <Box sx={{ maxWidth: 'md', display: 'block', marginTop: '2rem' }}>
         <Typography variant="h5" color="text.primary" gutterBottom>
-          My NFT mints:{' '}
+          My outfits:{' '}
         </Typography>
         {loading && <LinearProgress />}
 
@@ -186,14 +186,25 @@ export const Wizard = () => {
                               }
                             />
                           </div>
-                          <Button
-                            onClick={event => handleEntanglementClick(event, m)}
-                            variant="contained"
-                            startIcon={<SwapHorizIcon />}
-                            sx={{ marginTop: '1rem' }}
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'row',
+                              justifyContent: 'space-evenly',
+                              alignItems: 'center',
+                            }}
                           >
-                            SWAP
-                          </Button>
+                            <Button
+                              onClick={event =>
+                                handleEntanglementClick(event, m)
+                              }
+                              variant="contained"
+                              startIcon={<SwapHorizIcon />}
+                              sx={{ marginTop: '1rem' }}
+                            >
+                              CHANGE OUTFIT
+                            </Button>
+                          </div>
                         </Typography>
                       ))}
                     </React.Fragment>
