@@ -470,7 +470,7 @@ export const swapEntanglement = async (
   const tokenBEscrow = result[2];
   const transferAuthority = Keypair.generate();
   const paymentTransferAuthority = Keypair.generate();
-  const tokenMetadata = await getMetadata(tokenMint);
+  const replacementTokenMetadata = await getMetadata(replacementTokenMint);
   const signers = [transferAuthority];
 
   //@ts-ignore
@@ -486,7 +486,7 @@ export const swapEntanglement = async (
   const remainingAccounts = [];
 
   const metadataObj = await anchorProgram.provider.connection.getAccountInfo(
-    tokenMetadata,
+    replacementTokenMetadata,
   );
   const metadataDecoded: Metadata = decodeMetadata(
     //@ts-ignore
@@ -529,7 +529,7 @@ export const swapEntanglement = async (
       transferAuthority: transferAuthority.publicKey,
       paymentTransferAuthority: paymentTransferAuthority.publicKey,
       token,
-      tokenMetadata,
+      replacementTokenMetadata,
       replacementToken,
       replacementTokenMint,
       tokenAEscrow,
