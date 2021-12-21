@@ -21,7 +21,7 @@ export const Header = ({ narrow }: { narrow: boolean }) => {
       href: `/entanglement/`,
       innerNarrow: 'Find Entanglements',
       inner: (
-        <img style={{ width: '35px', height: '35px' }} src="LogoTransp.png" />
+        <img style={{ width: '35px', height: '35px' }} src="/LogoTransp.png" />
       ),
     },
   ];
