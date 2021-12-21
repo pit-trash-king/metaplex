@@ -9,6 +9,8 @@ import {
   chunks,
   fromUTF8Array,
   generateRandomSet,
+  
+  getPriceWithMantissa,
   parseDate,
   parsePrice,
 } from './helpers/various';
@@ -22,6 +24,7 @@ import {
   EXTENSION_PNG,
   CANDY_MACHINE_PROGRAM_ID,
   ARWEAVE_PAYMENT_WALLET,
+  WRAPPED_SOL_MINT,
 } from './helpers/constants';
 import {
   getBalance,
@@ -31,6 +34,12 @@ import {
   loadWalletKey,
   AccountAndPubkey,
   deserializeAccount,
+  getAtaForMint,
+  loadTokenEntanglementProgream,
+  getMasterEdition,
+  getMetadata
+  getTokenEntanglement,
+  getTokenEntanglementEscrows,
 } from './helpers/accounts';
 import { Config } from './types';
 import { verifyTokenMetadata } from './commands/verifyTokenMetadata';
@@ -563,6 +572,161 @@ programCommand('pull_chain_data')
     fs.writeFileSync('current-ages.json', JSON.stringify(hash));
   });
 
+programCommand('entangle_all_pairs')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadTokenEntanglementProgream(
+      walletKeyPair,
+      env,
+      rpcUrl,
+    );
+    const candyMachine = 'EpRFqiEBLKwYxqx2QMSJqSZsVRPN7bptQgkEAd3NgSMm';
+    const currentAgesText = fs.readFileSync('new_sets.json');
+    const parsed = JSON.parse(currentAgesText.toString());
+    const metadataByCandyMachine = [
+      ...(await getAccountsByCreatorAddress(
+        candyMachine,
+        anchorProgram.provider.connection,
+      )),
+    ];
+
+    const oldMdByMachine = [
+      ...(await getAccountsByCreatorAddress(
+        'CLErvyrMpi66RAxNV2wveSi25NxHb8G383MSVuGDgZzp',
+        anchorProgram.provider.connection,
+      )),
+      ...(await getAccountsByCreatorAddress(
+        'HHGsTSzwPpYMYDGgUqssgAsMZMsYbshgrhMge8Ypgsjx',
+        anchorProgram.provider.connection,
+      )),
+    ];
+
+    await Promise.all(
+      chunks(Array.from(Array(metadataByCandyMachine.length).keys()), 500).map(
+        async allIndexesInSlice => {
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const md = metadataByCandyMachine[allIndexesInSlice[i]][0];
+            const exists =
+              await anchorProgram.provider.connection.getTokenAccountBalance(
+                (
+                  await getAtaForMint(new anchor.web3.PublicKey(md.mint), walletKeyPair.publicKey)
+                )[0],
+              );
+              console.log("Exists value is", exists.value.uiAmount)
+            if (exists.value.uiAmount > 0) {
+              const otherMint = parsed.find(p => p.id == md.data.name);
+              const metadataEntry = oldMdByMachine.find(
+                m => m[1] == otherMint.metadata,
+              );
+              console.log(
+                'Token',
+                md.data.name,
+                'Needs entanglement, found metadata',
+                otherMint.metadata,
+                'and mint',
+                metadataEntry[0].mint,
+              );
+
+              let authorityKey: anchor.web3.PublicKey = new PublicKey('trshC9cTgL3BPXoAbp5w9UfnUMWEJx5G61vUijXPMLH'),
+                tMintKey: anchor.web3.PublicKey;
+             
+
+              const mintAKey = new anchor.web3.PublicKey(metadataEntry[0].mint);
+              const mintBKey = new anchor.web3.PublicKey(md.mint)
+
+                tMintKey = WRAPPED_SOL_MINT;
+
+              const [entangledPair, bump] = await getTokenEntanglement(
+                mintAKey,
+                mintBKey,
+              );
+
+              const [reverseEntangledPair, reverseBump] =
+                await getTokenEntanglement(mintBKey, mintAKey);
+
+              const [tokenAEscrow, tokenABump, tokenBEscrow, tokenBBump] =
+                await getTokenEntanglementEscrows(mintAKey, mintBKey);
+              const priceAdjusted = new anchor.BN(
+                await getPriceWithMantissa(
+                  0.5,
+                  tMintKey,
+                  walletKeyPair,
+                  anchorProgram,
+                ),
+              );
+              const ata = (
+                await getAtaForMint(mintBKey, walletKeyPair.publicKey)
+              )[0];
+              const transferAuthority = anchor.web3.Keypair.generate();
+              const signers = [transferAuthority];
+              const instruction =
+                await anchorProgram.instruction.createEntangledPair(
+                  bump,
+                  reverseBump,
+                  tokenABump,
+                  tokenBBump,
+                  priceAdjusted,
+                  false,
+                  {
+                    accounts: {
+                      treasuryMint: tMintKey,
+                      payer: walletKeyPair.publicKey,
+                      transferAuthority: transferAuthority.publicKey,
+                      authority: authorityKey,
+                      mintA: mintAKey,
+                      metadataA: await getMetadata(mintAKey),
+                      editionA: await getMasterEdition(mintAKey),
+                      mintB: mintBKey,
+                      metadataB: await getMetadata(mintBKey),
+                      editionB: await getMasterEdition(mintBKey),
+                      tokenB: ata,
+                      tokenAEscrow,
+                      tokenBEscrow,
+                      entangledPair,
+                      reverseEntangledPair,
+                      tokenProgram: TOKEN_PROGRAM_ID,
+                      systemProgram: anchor.web3.SystemProgram.programId,
+                      rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+                    },
+                  },
+                );
+
+              const instructions = [
+                Token.createApproveInstruction(
+                  TOKEN_PROGRAM_ID,
+                  ata,
+                  transferAuthority.publicKey,
+                  walletKeyPair.publicKey,
+                  [],
+                  1,
+                ),
+                instruction,
+                Token.createRevokeInstruction(
+                  TOKEN_PROGRAM_ID,
+                  ata,
+                  walletKeyPair.publicKey,
+                  [],
+                ),
+              ];
+
+              await sendTransactionWithRetryWithKeypair(
+                anchorProgram.provider.connection,
+                walletKeyPair,
+                instructions,
+                signers,
+                'max',
+              );
+            }
+          }
+        },
+      ),
+    );
+  });
 programCommand('pull_chain_result_set')
   .option(
     '-r, --rpc-url <string>',
