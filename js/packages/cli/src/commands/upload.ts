@@ -462,13 +462,7 @@ function getAssetKeysNeedingUpload(
     .reduce((acc, assetKey) => {
       const ext = path.extname(assetKey);
       const key = path.basename(assetKey, ext);
-<<<<<<< HEAD
-      if (key == '12917') log.debug('Hey', key);
-=======
-
->>>>>>> e85bb11f9f2c50846862716b7c54895b00883505
       if (!items[key]?.link && !keyMap[key]) {
-        if (key == '12917') log.debug('FOUNNNDD', items);
         keyMap[key] = true;
         acc.push({ mediaExt: ext, index: key });
       }

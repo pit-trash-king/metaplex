@@ -572,6 +572,41 @@ programCommand('pull_chain_data')
     fs.writeFileSync('current-ages.json', JSON.stringify(hash));
   });
 
+
+programCommand('all_mints')
+.option(
+  '-r, --rpc-url <string>',
+  'custom rpc url since this is a heavy command',
+)
+.action(async (files: string[], cmd) => {
+  const { keypair, env, rpcUrl, start } = cmd.opts();
+  const walletKeyPair = loadWalletKey(keypair);
+  const anchorProgram = await loadTokenEntanglementProgream(
+    walletKeyPair,
+    env,
+    rpcUrl,
+  );
+  const candyMachine = 'EpRFqiEBLKwYxqx2QMSJqSZsVRPN7bptQgkEAd3NgSMm';
+  const metadataByCandyMachine = [
+    ...(await getAccountsByCreatorAddress(
+      candyMachine,
+      anchorProgram.provider.connection,
+    )),
+  ];
+
+  const oldMdByMachine = [
+    ...(await getAccountsByCreatorAddress(
+      'CLErvyrMpi66RAxNV2wveSi25NxHb8G383MSVuGDgZzp',
+      anchorProgram.provider.connection,
+    )),
+    ...(await getAccountsByCreatorAddress(
+      'HHGsTSzwPpYMYDGgUqssgAsMZMsYbshgrhMge8Ypgsjx',
+      anchorProgram.provider.connection,
+    )),
+  ];
+  const combined = [...metadataByCandyMachine.map(m => new PublicKey(m[0].mint).toBase58()), ...oldMdByMachine.map(m => new PublicKey(m[0].mint).toBase58())]
+  fs.writeFileSync('valid_mints.json', JSON.stringify(combined))
+})
 programCommand('entangle_all_pairs')
   .option(
     '-r, --rpc-url <string>',
