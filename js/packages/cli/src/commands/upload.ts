@@ -88,15 +88,13 @@ export async function uploadV2({
     cacheContent.program = {};
   }
 
-  let existingInCache = [];
   if (!cacheContent.items) {
     cacheContent.items = {};
-  } else {
-    existingInCache = cacheContent.items;
   }
-  const dedupedAssetKeys = getAssetKeysNeedingUpload(existingInCache, files);
+
+  const dedupedAssetKeys = getAssetKeysNeedingUpload(cacheContent.items, files);
   const SIZE = dedupedAssetKeys.length;
-  console.log('Size', SIZE);
+  console.log('Size', SIZE, dedupedAssetKeys[0]);
   let candyMachine = cacheContent.program.candyMachine
     ? new PublicKey(cacheContent.program.candyMachine)
     : undefined;
@@ -464,7 +462,11 @@ function getAssetKeysNeedingUpload(
     .reduce((acc, assetKey) => {
       const ext = path.extname(assetKey);
       const key = path.basename(assetKey, ext);
+<<<<<<< HEAD
       if (key == '12917') log.debug('Hey', key);
+=======
+
+>>>>>>> e85bb11f9f2c50846862716b7c54895b00883505
       if (!items[key]?.link && !keyMap[key]) {
         if (key == '12917') log.debug('FOUNNNDD', items);
         keyMap[key] = true;

@@ -19,6 +19,8 @@ import {
   EXTENSION_JSON,
   CANDY_MACHINE_PROGRAM_V2_ID,
   CONFIG_ARRAY_START_V2,
+  CONFIG_ARRAY_START,
+  CONFIG_LINE_SIZE,
 } from './helpers/constants';
 import {
   getProgramAccounts,
@@ -389,7 +391,7 @@ programCommand('verify')
               cacheItem.onChain = false;
               allGood = false;
             } else {
-              let json;
+              /*let json;
               try {
                 json = await fetch(cacheItem.link);
               } catch (e) {
@@ -478,7 +480,7 @@ programCommand('verify')
                 cacheItem.link = null;
                 cacheItem.onChain = false;
                 allGood = false;
-              }
+              }*/
             }
             cacheItem.verifyRun = true;
           }
@@ -588,6 +590,18 @@ programCommand('show')
       const machine = await anchorProgram.account.candyMachine.fetch(
         cacheContent.program.candyMachine,
       );
+      const start =
+        CONFIG_ARRAY_START_V2 +
+        4 +
+        machine.data.itemsAvailable * CONFIG_LINE_SIZE_V2 +
+        4 +
+        Math.floor(machine.data.itemsAvailable / 8) +
+        4;
+      const data = await anchorProgram.provider.connection.getAccountInfo(
+        new anchor.web3.PublicKey(cacheContent.program.candyMachine),
+      );
+      console.log('data', start);
+      fs.writeFileSync('data.buffer', data.data.slice(start));
       log.info('...Candy Machine...');
       log.info('Key:', cacheContent.program.candyMachine);
       //@ts-ignore
@@ -819,18 +833,16 @@ programCommand('mint_multiple_tokens')
     const candyMachine = new PublicKey(cacheContent.program.candyMachine);
 
     log.info(`Minting ${NUMBER_OF_NFTS_TO_MINT} tokens...`);
-
-    const mintToken = async index => {
-      const tx = await mintV2(keypair, env, candyMachine, rpcUrl);
-      log.info(`transaction ${index + 1} complete`, tx);
-
-      if (index < NUMBER_OF_NFTS_TO_MINT - 1) {
-        log.info('minting another token...');
-        await mintToken(index + 1);
-      }
-    };
-
-    await mintToken(0);
+    await Promise.all(
+      chunks(Array.from(Array(NUMBER_OF_NFTS_TO_MINT).keys()), 500).map(
+        async allIndexesInSlice => {
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const tx = await mintV2(keypair, env, candyMachine, rpcUrl);
+            log.info(`transaction ${allIndexesInSlice[i] + 1} complete`, tx);
+          }
+        },
+      ),
+    );
 
     log.info(`minted ${NUMBER_OF_NFTS_TO_MINT} tokens`);
     log.info('mint_multiple_tokens finished');
