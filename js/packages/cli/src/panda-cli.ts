@@ -608,6 +608,81 @@ programCommand('all_mints')
     ];
     fs.writeFileSync('valid_mints.json', JSON.stringify(combined));
   });
+
+programCommand('close_all_accounts')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadTokenEntanglementProgream(
+      walletKeyPair,
+      env,
+      rpcUrl,
+    );
+    const candyMachine = 'EpRFqiEBLKwYxqx2QMSJqSZsVRPN7bptQgkEAd3NgSMm';
+    const currentAgesText = fs.readFileSync('new_sets.json');
+    const parsed = JSON.parse(currentAgesText.toString());
+    const metadataByCandyMachine = [
+      ...(await getAccountsByCreatorAddress(
+        candyMachine,
+        anchorProgram.provider.connection,
+      )),
+    ];
+
+    await Promise.all(
+      chunks(Array.from(Array(metadataByCandyMachine.length).keys()), 500).map(
+        async allIndexesInSlice => {
+          let instructions = [];
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const md = metadataByCandyMachine[allIndexesInSlice[i]][0];
+            const key = (
+              await getAtaForMint(
+                new anchor.web3.PublicKey(md.mint),
+                walletKeyPair.publicKey,
+              )
+            )[0];
+            let exists;
+            try {
+              exists =
+                await anchorProgram.provider.connection.getTokenAccountBalance(
+                  key,
+                );
+              console.log('Exists value is', exists.value.uiAmount);
+              if (exists.value.uiAmount == 0) {
+                instructions.push(
+                  Token.createCloseAccountInstruction(
+                    TOKEN_PROGRAM_ID,
+                    key,
+                    walletKeyPair.publicKey,
+                    walletKeyPair.publicKey,
+                    [],
+                  ),
+                );
+              }
+            } catch (e) {
+              console.log('account doenst exist');
+            }
+
+            if (instructions.length == 10) {
+              console.log('Closing 10 accounts');
+              await sendTransactionWithRetryWithKeypair(
+                anchorProgram.provider.connection,
+                walletKeyPair,
+                instructions,
+                [],
+                'single',
+              );
+              instructions = [];
+            }
+          }
+        },
+      ),
+    );
+  });
+
 programCommand('entangle_all_pairs')
   .option(
     '-r, --rpc-url <string>',
