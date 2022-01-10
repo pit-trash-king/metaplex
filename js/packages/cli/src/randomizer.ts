@@ -5,29 +5,12 @@ import { PublicKey } from '@solana/web3.js';
 import * as fs from 'fs';
 import { CACHE_PATH } from './helpers/constants';
 const LOOKUP = {
-  Yogi: 2500,
-
-  Cashgrab: 2000,
-
-  Bees: 2000,
-
-  Ded: 1000,
-
-  Hostage: 500,
-
-  Uhoh: 500,
-
-  Fine: 500,
-
-  Pic: 500,
-
-  NGMI: 250,
-
-  Trash: 150,
-
-  Bardy: 90,
-
-  Redacted: 10,
+  Pandos: 500,
+  'Beer Can': 80,
+  'Cardboard Box': 130,
+  'Juice Box': 35,
+  'McDegens Paper Bag': 255,
+  'Tomato Soup': 1000,
 };
 program.version('0.0.2');
 

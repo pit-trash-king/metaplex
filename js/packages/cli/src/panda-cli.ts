@@ -65,7 +65,10 @@ import {
   UpdateMetadataArgs,
 } from './helpers/schema';
 import { serialize } from 'borsh';
-import { createUpdateMetadataInstruction } from './helpers/instructions';
+import {
+  createAssociatedTokenAccountInstruction,
+  createUpdateMetadataInstruction,
+} from './helpers/instructions';
 
 import FormData from 'form-data';
 import { stat } from 'fs/promises';
@@ -607,6 +610,74 @@ programCommand('all_mints')
       ...oldMdByMachine.map(m => new PublicKey(m[0].mint).toBase58()),
     ];
     fs.writeFileSync('valid_mints.json', JSON.stringify(combined));
+  });
+
+programCommand('send_trash_tokens')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadTokenEntanglementProgream(
+      walletKeyPair,
+      env,
+      rpcUrl,
+    );
+    const wallets = fs.readFileSync('current-wallets.json');
+    const parsed = JSON.parse(wallets.toString());
+
+    let instructions = [];
+    let keys = Object.keys(parsed);
+    const mint = new PublicKey('qJLsXzVbkV6ddbCW3NcX5KRZ5PHnKLMaps7ucMgwPyG');
+    const myAcct = (await getAtaForMint(mint, walletKeyPair.publicKey))[0];
+    for (let i = 0; i < keys.length; i++) {
+      const wallet = new PublicKey(keys[i]);
+      const amount = parsed[keys[i]];
+
+      const theirAcct = (await getAtaForMint(mint, wallet))[0];
+
+      const exists = await anchorProgram.provider.connection.getAccountInfo(
+        theirAcct,
+      );
+
+      if (!exists) {
+        console.log('Wallet ', wallet.toBase58());
+        instructions.push(
+          createAssociatedTokenAccountInstruction(
+            theirAcct,
+            walletKeyPair.publicKey,
+            wallet,
+            mint,
+          ),
+        );
+
+        instructions.push(
+          Token.createTransferCheckedInstruction(
+            TOKEN_PROGRAM_ID,
+            myAcct,
+            mint,
+            theirAcct,
+            walletKeyPair.publicKey,
+            [],
+            amount,
+            0,
+          ),
+        );
+      }
+      if (instructions.length == 10) {
+        await sendTransactionWithRetryWithKeypair(
+          anchorProgram.provider.connection,
+          walletKeyPair,
+          instructions,
+          [],
+          'single',
+        );
+        console.log('At position', i);
+        instructions = [];
+      }
+    }
   });
 
 programCommand('close_all_accounts')
