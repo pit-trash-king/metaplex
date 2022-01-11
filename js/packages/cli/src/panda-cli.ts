@@ -24,6 +24,7 @@ import {
   CANDY_MACHINE_PROGRAM_ID,
   ARWEAVE_PAYMENT_WALLET,
   WRAPPED_SOL_MINT,
+  TOKEN_ENTANGLEMENT_PROGRAM_ID,
 } from './helpers/constants';
 import {
   getBalance,
@@ -642,16 +643,27 @@ programCommand('send_trash_tokens')
         theirAcct,
       );
 
-      if (!exists) {
-        console.log('Wallet ', wallet.toBase58());
-        instructions.push(
-          createAssociatedTokenAccountInstruction(
+      let bal = 0;
+      try {
+        bal = (
+          await anchorProgram.provider.connection.getTokenAccountBalance(
             theirAcct,
-            walletKeyPair.publicKey,
-            wallet,
-            mint,
-          ),
-        );
+          )
+        ).value.uiAmount;
+      } catch (e) {}
+
+      if (!exists || (bal > 0 && bal < amount)) {
+        console.log('Wallet ', wallet.toBase58(), amount, bal, amount - bal);
+
+        if (!exists)
+          instructions.push(
+            createAssociatedTokenAccountInstruction(
+              theirAcct,
+              walletKeyPair.publicKey,
+              wallet,
+              mint,
+            ),
+          );
 
         instructions.push(
           Token.createTransferCheckedInstruction(
@@ -661,19 +673,23 @@ programCommand('send_trash_tokens')
             theirAcct,
             walletKeyPair.publicKey,
             [],
-            amount,
+            amount - bal,
             0,
           ),
         );
       }
-      if (instructions.length == 10) {
-        await sendTransactionWithRetryWithKeypair(
-          anchorProgram.provider.connection,
-          walletKeyPair,
-          instructions,
-          [],
-          'single',
-        );
+      if (instructions.length >= 10) {
+        try {
+          await sendTransactionWithRetryWithKeypair(
+            anchorProgram.provider.connection,
+            walletKeyPair,
+            instructions,
+            [],
+            'single',
+          );
+        } catch (e) {
+          console.log('Failed txn');
+        }
         console.log('At position', i);
         instructions = [];
       }
@@ -1382,9 +1398,16 @@ programCommand('unique_wallets')
 
               const asToken = deserializeAccount(account.data);
 
-              const ataVers = (await getAtaForMint(mint, asToken.owner))[0];
+              const tokenOwner =
+                await anchorProgram.provider.connection.getAccountInfo(
+                  asToken.owner,
+                );
 
-              if (holding.address.equals(ataVers)) {
+              if (
+                tokenOwner &&
+                tokenOwner.owner.toBase58() !=
+                  TOKEN_ENTANGLEMENT_PROGRAM_ID.toBase58()
+              ) {
                 console.log('Found holding address', asToken.owner.toBase58());
                 if (!parsedWallets[asToken.owner.toBase58()])
                   parsedWallets[asToken.owner.toBase58()] = 1;
