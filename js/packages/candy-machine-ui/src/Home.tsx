@@ -172,7 +172,7 @@ const Home = (props: HomeProps) => {
           justifyContent: 'center',
         }}
       >
-        <img src="LogoTransp.png" style={{ height: '200px', width: '200px' }} />
+        <img src="box.png" style={{ height: '200px', width: '200px' }} />
       </Container>
       <Container maxWidth="xs" style={{ position: 'relative' }}>
         <Paper
