@@ -1357,6 +1357,10 @@ programCommand('unique_wallets')
         'C9uGSpNQ7PSCT5zr7ULBm8VjaXQ2oHvJtr836fqD1A9N',
         anchorProgram.provider.connection,
       )),
+      ...(await getAccountsByCreatorAddress(
+        'EpRFqiEBLKwYxqx2QMSJqSZsVRPN7bptQgkEAd3NgSMm',
+        anchorProgram.provider.connection,
+      )),
     ];
 
     await Promise.all(
@@ -1378,10 +1382,14 @@ programCommand('unique_wallets')
 
               const asToken = deserializeAccount(account.data);
 
-              console.log('Found holding address', asToken.owner.toBase58());
-              if (!parsedWallets[asToken.owner.toBase58()])
-                parsedWallets[asToken.owner.toBase58()] = 1;
-              else parsedWallets[asToken.owner.toBase58()]++;
+              const ataVers = (await getAtaForMint(mint, asToken.owner))[0];
+
+              if (holding.address.equals(ataVers)) {
+                console.log('Found holding address', asToken.owner.toBase58());
+                if (!parsedWallets[asToken.owner.toBase58()])
+                  parsedWallets[asToken.owner.toBase58()] = 1;
+                else parsedWallets[asToken.owner.toBase58()]++;
+              }
             }
             if (i % 10 == 0) {
               fs.writeFileSync(
