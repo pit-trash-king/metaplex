@@ -84,7 +84,7 @@ const Home = (props: HomeProps) => {
         );
         setCandyMachine(cndy);
       } catch (e) {
-        console.log('There was a problem fetching Candy Machine state');
+        console.log('There was a problem fetching Candy Machine state.');
         console.log(e);
       }
     }
