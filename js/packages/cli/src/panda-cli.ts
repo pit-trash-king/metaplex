@@ -652,7 +652,7 @@ programCommand('send_trash_tokens')
         ).value.uiAmount;
       } catch (e) {}
 
-      if (!exists || (bal > 0 && bal < amount)) {
+      if (!exists || (bal >= 0 && bal < amount)) {
         console.log('Wallet ', wallet.toBase58(), amount, bal, amount - bal);
 
         if (!exists)
