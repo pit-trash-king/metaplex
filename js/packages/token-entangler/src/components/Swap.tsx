@@ -73,7 +73,7 @@ export const Swap = () => {
   return (
     <React.Fragment>
       <Typography variant="h4" color="text.primary" gutterBottom>
-        Swap Outfit
+        Swap Monke
       </Typography>
       <p>Enter MintA and MintB or Entangled Pair.</p>
 
@@ -121,7 +121,7 @@ export const Swap = () => {
             endIcon={<SendIcon />}
             disabled={!isEnable(mintA, mintB, entangledPair)}
           >
-            CHANGE OUTFITS
+            CHANGE MonkeS
           </Button>
         </FormGroup>
       </Box>

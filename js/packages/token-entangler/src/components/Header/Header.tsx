@@ -19,7 +19,7 @@ export const Header = ({ narrow }: { narrow: boolean }) => {
   const navs = [
     {
       href: `/`,
-      innerNarrow: 'Find Outfits',
+      innerNarrow: 'Find Monkes',
       inner: (
         <img style={{ width: '35px', height: '35px' }} src="/LogoTransp.png" />
       ),

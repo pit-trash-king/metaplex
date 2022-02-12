@@ -155,20 +155,6 @@ export const Settings = ({ narrow }: { narrow: boolean }) => {
     );
   };
 
-  const themeSwitch = (
-    <Button
-      sx={{ ml: 1 }}
-      onClick={colorModeCtx.toggleColorMode}
-      color="inherit"
-    >
-      {theme.palette.mode === 'dark' ? (
-        <Brightness7Icon />
-      ) : (
-        <Brightness4Icon />
-      )}
-    </Button>
-  );
-
   if (narrow) {
     const listHead = (
       <ListItem>
@@ -228,7 +214,6 @@ export const Settings = ({ narrow }: { narrow: boolean }) => {
               })}
             </List>,
           )}
-        {themeSwitch}
       </React.Fragment>
     );
   } else {
@@ -280,7 +265,6 @@ export const Settings = ({ narrow }: { narrow: boolean }) => {
               </Button>
             );
           })}
-        {themeSwitch}
       </Stack>
     );
   }

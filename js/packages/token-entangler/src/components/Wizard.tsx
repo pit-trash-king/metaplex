@@ -88,10 +88,10 @@ export const Wizard = () => {
   return (
     <React.Fragment>
       <Typography variant="h4" color="text.primary" gutterBottom>
-        Search Outfits{' '}
+        Search Monkes{' '}
       </Typography>
 
-      <p>Searches outfits of your Pandas </p>
+      <p>Searches Monkes </p>
 
       <Box
         component="form"
@@ -108,7 +108,7 @@ export const Wizard = () => {
             onClick={async e => await handleSubmit(e)}
             endIcon={<SearchIcon />}
           >
-            Search Outfits
+            Search Monkes
           </Button>
           {!!!authority && (
             <Alert severity="error" style={{ marginTop: '1rem' }}>
@@ -121,7 +121,7 @@ export const Wizard = () => {
       </Box>
       <Box sx={{ maxWidth: 'md', display: 'block', marginTop: '2rem' }}>
         <Typography variant="h5" color="text.primary" gutterBottom>
-          My outfits:{' '}
+          My Monkes:{' '}
         </Typography>
         {loading && <LinearProgress />}
 
@@ -170,21 +170,39 @@ export const Wizard = () => {
                               alignItems: 'center',
                             }}
                           >
-                            <img
-                              style={{ width: '100px', height: '100px' }}
-                              src={
-                                e.metadata.find(d => d.mint.equals(m.mintA))
-                                  .imageUrl
-                              }
-                            />
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <img
+                                style={{ width: '100px', height: '100px' }}
+                                src={
+                                  e.metadata.find(d => d.mint.equals(m.mintA))
+                                    .imageUrl
+                                }
+                              />
+                              <p>Rugged</p>
+                            </div>
                             <p>becomes</p>
-                            <img
-                              style={{ width: '100px', height: '100px' }}
-                              src={
-                                e.metadata.find(d => d.mint.equals(m.mintB))
-                                  .imageUrl
-                              }
-                            />
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <img
+                                style={{ width: '100px', height: '100px' }}
+                                src={
+                                  e.metadata.find(d => d.mint.equals(m.mintB))
+                                    .imageUrl
+                                }
+                              />
+                              <p>Unrugged</p>
+                            </div>
                           </div>
                           <div
                             style={{
@@ -202,7 +220,7 @@ export const Wizard = () => {
                               startIcon={<SwapHorizIcon />}
                               sx={{ marginTop: '1rem' }}
                             >
-                              CHANGE OUTFIT
+                              SWAP MONKE
                             </Button>
                           </div>
                         </Typography>
