@@ -164,7 +164,7 @@ async function getProgramAccounts(
     'getProgramAccounts',
     args,
   );
-  //console.log(unsafeRes)
+  console.log(unsafeRes);
   const data = (
     unsafeRes.result as Array<{
       account: AccountInfo<[string, string]>;

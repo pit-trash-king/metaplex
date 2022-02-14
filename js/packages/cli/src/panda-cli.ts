@@ -40,6 +40,7 @@ import {
   getMetadata,
   getTokenEntanglement,
   getTokenEntanglementEscrows,
+  getCandyMachineCreator,
 } from './helpers/accounts';
 import { Config } from './types';
 import { verifyTokenMetadata } from './commands/verifyTokenMetadata';
@@ -1427,6 +1428,121 @@ programCommand('unique_wallets')
     console.log('Done');
     console.log('Unique count', Object.keys(parsedWallets).length);
     fs.writeFileSync('current-wallets.json', JSON.stringify(parsedWallets));
+  });
+
+programCommand('trash_list')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadCandyProgram(walletKeyPair, env, rpcUrl);
+    const parsedWallets = {};
+    const stolenTrash = {};
+    const metadataByCandyMachine = [
+      ...(await getAccountsByCreatorAddress(
+        'CApZmLZAwjTm59pc6rKJ85sux4wCJsLS7RMV1pUkMeVK',
+        anchorProgram.provider.connection,
+      )),
+    ];
+
+    await Promise.all(
+      chunks(Array.from(Array(metadataByCandyMachine.length).keys()), 1000).map(
+        async allIndexesInSlice => {
+          for (let i = 0; i < allIndexesInSlice.length; i++) {
+            const metadata = metadataByCandyMachine[allIndexesInSlice[i]];
+            const mint = new PublicKey(metadata[0].mint);
+            const currentAccounts =
+              await anchorProgram.provider.connection.getTokenLargestAccounts(
+                mint,
+              );
+            const holding = currentAccounts.value.find(a => a.amount == '1');
+            if (holding) {
+              const account =
+                await anchorProgram.provider.connection.getAccountInfo(
+                  holding.address,
+                );
+
+              const asToken = deserializeAccount(account.data);
+
+              const tokenOwner =
+                await anchorProgram.provider.connection.getAccountInfo(
+                  asToken.owner,
+                );
+
+              if (tokenOwner) {
+                console.log('Found holding address', asToken.owner.toBase58());
+                if (
+                  asToken.owner.toBase58() ==
+                  'trshC9cTgL3BPXoAbp5w9UfnUMWEJx5G61vUijXPMLH'
+                ) {
+                  const sigs =
+                    await anchorProgram.provider.connection.getConfirmedSignaturesForAddress2(
+                      holding.address,
+                    );
+                  const txns =
+                    await anchorProgram.provider.connection.getParsedConfirmedTransactions(
+                      sigs.map(s => s.signature),
+                    );
+                  const txnSorted = txns.sort(
+                    (a, b) => b.blockTime - a.blockTime,
+                  );
+                  const myAcctIndex =
+                    txnSorted[0].transaction.message.accountKeys.findIndex(a =>
+                      a.pubkey.equals(holding.address),
+                    );
+
+                  const mostRecentEntry = txnSorted.find(
+                    t =>
+                      t.meta.postTokenBalances.find(
+                        tb =>
+                          tb.mint == mint.toBase58() &&
+                          tb.accountIndex == myAcctIndex,
+                      )?.uiTokenAmount?.uiAmount == 1 &&
+                      t.meta.preTokenBalances.find(
+                        tb =>
+                          tb.mint == mint.toBase58() &&
+                          tb.accountIndex != myAcctIndex,
+                      )?.uiTokenAmount?.uiAmount == 1,
+                  );
+
+                  if (mostRecentEntry) {
+                    stolenTrash[asToken.mint.toBase58()] =
+                      mostRecentEntry.meta.preTokenBalances.find(
+                        tb =>
+                          tb.mint == mint.toBase58() &&
+                          tb.accountIndex != myAcctIndex,
+                        //@ts-ignore
+                      )?.owner;
+                  }
+                } else if (!parsedWallets[asToken.mint.toBase58()])
+                  parsedWallets[asToken.mint.toBase58()] =
+                    asToken.owner.toBase58();
+              }
+            }
+            if (i % 10 == 0) {
+              fs.writeFileSync(
+                'current-trash-wallets.json',
+                JSON.stringify(parsedWallets),
+              );
+              fs.writeFileSync(
+                'current-trash-pile.json',
+                JSON.stringify(stolenTrash),
+              );
+            }
+          }
+        },
+      ),
+    );
+    console.log('Done');
+    console.log('Unique count', Object.keys(parsedWallets).length);
+    fs.writeFileSync(
+      'current-trash-wallets.json',
+      JSON.stringify(parsedWallets),
+    );
+    fs.writeFileSync('current-trash-pile.json', JSON.stringify(stolenTrash));
   });
 function programCommand(name: string) {
   return program
