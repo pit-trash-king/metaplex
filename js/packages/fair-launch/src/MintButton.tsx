@@ -65,6 +65,7 @@ export const MintButton = ({
 
       setClicked(false);
       setVerified(false)
+      setWebSocketSubscriptionId(-1)
     }
     if (verified && clicked) {
       mint()
@@ -144,7 +145,7 @@ export const MintButton = ({
         'MINTED'
       ) : candyMachine?.state.isSoldOut ? (
         'SOLD OUT'
-      ) : isMinting ? (
+      ) : (clicked || isMinting) ? (
         <CircularProgress />
       ) : (
         'MINT'
