@@ -27,6 +27,7 @@ export const Wizard = () => {
   const [loading, setLoading] = useState(false);
 
   const authority = process.env.REACT_APP_WHITELISTED_AUTHORITY!;
+  const juiceAuthority = "Co1dxFc7MDWUKeEiDuW47EWeoiMT1L7BUWnNG6HP9JUi";
 
   const anchorWallet = useMemo(() => {
     if (
@@ -63,10 +64,21 @@ export const Wizard = () => {
         walletNFTMints[i],
         authority,
       );
+      const juiceDatas = await searchEntanglements(
+        anchorWallet,
+        connection,
+        walletNFTMints[i],
+        juiceAuthority,
+      );
       allEntanglementsMap.push({
         mint: walletNFTMints[i],
         entanglements,
         metadata,
+      });
+      allEntanglementsMap.push({
+        mint: walletNFTMints[i],
+        entanglements: juiceDatas.entanglements,
+        metadata: juiceDatas.metadata,
       });
     }
     console.log('Entangle', allEntanglementsMap);
