@@ -91,9 +91,9 @@ export const Wizard = () => {
     entanglement: any,
   ) => {
     event.preventDefault();
-    localStorage.setItem('mintA', entanglement.mintA.toString());
-    localStorage.setItem('mintB', entanglement.mintB.toString());
-    localStorage.setItem('entanglement', '');
+    await localStorage.setItem('mintA', entanglement.mintA.toString());
+    await localStorage.setItem('mintB', entanglement.mintB.toString());
+    await localStorage.setItem('entanglement', '');
     history.push(`swap/`);
   };
 
