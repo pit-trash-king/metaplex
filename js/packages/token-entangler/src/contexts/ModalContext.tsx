@@ -16,7 +16,7 @@ export const ModalContext = React.createContext<ModalContextProps>({
   removeModal: () => null,
 });
 
-export const ModalProvider: React.FC = ({ children }) => {
+export const ModalProvider: React.FC<{ children: any }> = ({ children }) => {
   const [modal, setModal] = useState<ModalEnum | undefined>(undefined);
 
   const removeModal = useCallback(() => {

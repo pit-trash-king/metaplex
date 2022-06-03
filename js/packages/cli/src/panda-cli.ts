@@ -4,7 +4,6 @@ import * as path from 'path';
 import { program } from 'commander';
 import * as anchor from '@project-serum/anchor';
 import fetch from 'node-fetch';
-
 import {
   chunks,
   fromUTF8Array,
@@ -12,9 +11,9 @@ import {
   getPriceWithMantissa,
   parseDate,
   parsePrice,
+  sleep,
 } from './helpers/various';
 import { AccountInfo, Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import {
   CACHE_PATH,
   CONFIG_ARRAY_START,
@@ -294,7 +293,9 @@ programCommand('update_levels_on_chain')
             const metadataAddresses = toUpdate.filter(k => indexes[k]);
             const metadataAccounts = await getMultipleAccounts(
               anchorProgram.provider.connection,
-              metadataAddresses.map(a => new PublicKey(a.split('.')[0])),
+              metadataAddresses.map(
+                a => new anchor.web3.PublicKey(a.split('.')[0]),
+              ),
             );
             for (let j = 0; j < metadataAccounts.length; j++) {
               const metadata = decodeMetadata(metadataAccounts[j].account.data);
@@ -302,9 +303,7 @@ programCommand('update_levels_on_chain')
                 const newJSON = fs.readFileSync(
                   'replacements/' + metadataAccounts[j].publicKey + '.json',
                 );
-
-                //@ts-ignore
-                const parsedJ = JSON.parse(newJSON);
+                const parsedJ = JSON.parse(newJSON.toString());
                 const existing = parsedJ.attributes.find(
                   a => a.trait_type == '❤️',
                 );
@@ -332,7 +331,9 @@ programCommand('update_levels_on_chain')
                       c =>
                         new Creator({
                           ...c,
-                          address: new PublicKey(c.address).toBase58(),
+                          address: new anchor.web3.PublicKey(
+                            c.address,
+                          ).toBase58(),
                         }),
                     ),
                     uri: newLink,
@@ -429,7 +430,7 @@ programCommand('update_levels')
             const metadataAddresses = keys.filter(k => indexes[k]);
             const metadataAccounts = await getMultipleAccounts(
               anchorProgram.provider.connection,
-              metadataAddresses.map(a => new PublicKey(a)),
+              metadataAddresses.map(a => new anchor.web3.PublicKey(a)),
             );
             for (let j = 0; j < metadataAccounts.length; j++) {
               const metadata = decodeMetadata(metadataAccounts[j].account.data);
@@ -469,6 +470,7 @@ programCommand('update_levels')
       ),
     );
   });
+
 programCommand('pull_chain_data')
   .option(
     '-r, --rpc-url <string>',
@@ -505,7 +507,7 @@ programCommand('pull_chain_data')
             const metadata = metadataByCandyMachine.find(
               m => m[1] == keysNotPresent[allIndexesInSlice[i]],
             );
-            const mint = new PublicKey(metadata[0].mint);
+            const mint = new anchor.web3.PublicKey(metadata[0].mint);
             const currentAccounts =
               await anchorProgram.provider.connection.getTokenLargestAccounts(
                 mint,
@@ -612,9 +614,22 @@ programCommand('all_mints')
         anchorProgram.provider.connection,
       )),
     ];
+
+    const juiceDaoMd = [
+      ...(await getAccountsByCreatorAddress(
+        'Fb9shNbwzYfdPrPMvDPZxroz7aVwB7qyJ7TshjiDPo9J',
+        anchorProgram.provider.connection,
+      )),
+    ];
+
     const combined = [
-      ...metadataByCandyMachine.map(m => new PublicKey(m[0].mint).toBase58()),
-      ...oldMdByMachine.map(m => new PublicKey(m[0].mint).toBase58()),
+      ...metadataByCandyMachine.map(m =>
+        new anchor.web3.PublicKey(m[0].mint).toBase58(),
+      ),
+      ...oldMdByMachine.map(m =>
+        new anchor.web3.PublicKey(m[0].mint).toBase58(),
+      ),
+      ...juiceDaoMd.map(m => new anchor.web3.PublicKey(m[0].mint).toBase58()),
     ];
     fs.writeFileSync('valid_mints.json', JSON.stringify(combined));
   });
@@ -637,7 +652,9 @@ programCommand('point_to_hydra')
     let instructions = [];
     const metadataAddresses = [];
     for (let i = 0; i < parsed.length; i++) {
-      metadataAddresses.push(await getMetadata(new PublicKey(parsed[i])));
+      metadataAddresses.push(
+        await getMetadata(new anchor.web3.PublicKey(parsed[i])),
+      );
     }
     const metadataAccounts = await getMultipleAccounts(
       anchorProgram.provider.connection,
@@ -650,7 +667,7 @@ programCommand('point_to_hydra')
           try {
             if (
               metadata.data.creators[1].share < 68 &&
-              new PublicKey(metadata.updateAuthority).equals(
+              new anchor.web3.PublicKey(metadata.updateAuthority).equals(
                 walletKeyPair.publicKey,
               )
             ) {
@@ -659,28 +676,28 @@ programCommand('point_to_hydra')
                 creators: [
                   metadata.data.creators[0],
                   new Creator({
-                    address: new PublicKey(
+                    address: new anchor.web3.PublicKey(
                       'trshC9cTgL3BPXoAbp5w9UfnUMWEJx5G61vUijXPMLH',
                     ).toBase58(),
                     verified: 1,
                     share: 68,
                   }),
                   new Creator({
-                    address: new PublicKey(
+                    address: new anchor.web3.PublicKey(
                       'ENACtpCWKJAomGtWVH2UqdNKmkR1Ft4V81gC4oUbi5W1',
                     ).toBase58(),
                     verified: 0,
                     share: 26,
                   }),
                   new Creator({
-                    address: new PublicKey(
+                    address: new anchor.web3.PublicKey(
                       '8BoJdKKz3j4bUGJdAdGhaiSpv1EM9HhSm1cjy1iPrfhk',
                     ).toBase58(),
                     verified: 0,
                     share: 5,
                   }),
                   new Creator({
-                    address: new PublicKey(
+                    address: new anchor.web3.PublicKey(
                       '3B86L4BrRjm9V7sd3AjjJq5XFtyqMgCYMCTwqMMvAxgr',
                     ).toBase58(),
                     verified: 0,
@@ -774,10 +791,12 @@ programCommand('send_trash_tokens')
 
     let instructions = [];
     let keys = Object.keys(parsed);
-    const mint = new PublicKey('qJLsXzVbkV6ddbCW3NcX5KRZ5PHnKLMaps7ucMgwPyG');
+    const mint = new anchor.web3.PublicKey(
+      'qJLsXzVbkV6ddbCW3NcX5KRZ5PHnKLMaps7ucMgwPyG',
+    );
     const myAcct = (await getAtaForMint(mint, walletKeyPair.publicKey))[0];
     for (let i = 0; i < keys.length; i++) {
-      const wallet = new PublicKey(keys[i]);
+      const wallet = new anchor.web3.PublicKey(keys[i]);
       const amount = parsed[keys[i]];
 
       const theirAcct = (await getAtaForMint(mint, wallet))[0];
@@ -976,9 +995,10 @@ programCommand('entangle_all_pairs')
                 metadataEntry[0].mint,
               );
 
-              let authorityKey: anchor.web3.PublicKey = new PublicKey(
-                  'trshC9cTgL3BPXoAbp5w9UfnUMWEJx5G61vUijXPMLH',
-                ),
+              let authorityKey: anchor.web3.PublicKey =
+                  new anchor.web3.PublicKey(
+                    'trshC9cTgL3BPXoAbp5w9UfnUMWEJx5G61vUijXPMLH',
+                  ),
                 tMintKey: anchor.web3.PublicKey;
 
               const mintAKey = new anchor.web3.PublicKey(metadataEntry[0].mint);
@@ -1107,7 +1127,7 @@ programCommand('pull_chain_result_set')
             const metadata = metadataByCandyMachine.find(
               m => m[1] == keysNotPresent[allIndexesInSlice[i]],
             );
-            const mint = new PublicKey(metadata[0].mint);
+            const mint = new anchor.web3.PublicKey(metadata[0].mint);
             const currentAccounts =
               await anchorProgram.provider.connection.getTokenLargestAccounts(
                 mint,
@@ -1175,7 +1195,7 @@ programCommand('pull_chain_rug_set')
             const metadata = metadataByCandyMachine.find(
               m => m[1] == keysNotPresent[allIndexesInSlice[i]],
             );
-            const mint = new PublicKey(metadata[0].mint);
+            const mint = new anchor.web3.PublicKey(metadata[0].mint);
             const currentAccounts =
               await anchorProgram.provider.connection.getTokenLargestAccounts(
                 mint,
@@ -1528,7 +1548,7 @@ programCommand('unique_wallets')
         async allIndexesInSlice => {
           for (let i = 0; i < allIndexesInSlice.length; i++) {
             const metadata = metadataByCandyMachine[allIndexesInSlice[i]];
-            const mint = new PublicKey(metadata[0].mint);
+            const mint = new anchor.web3.PublicKey(metadata[0].mint);
             const currentAccounts =
               await anchorProgram.provider.connection.getTokenLargestAccounts(
                 mint,
@@ -1596,7 +1616,7 @@ programCommand('trash_list')
         async allIndexesInSlice => {
           for (let i = 0; i < allIndexesInSlice.length; i++) {
             const metadata = metadataByCandyMachine[allIndexesInSlice[i]];
-            const mint = new PublicKey(metadata[0].mint);
+            const mint = new anchor.web3.PublicKey(metadata[0].mint);
             const currentAccounts =
               await anchorProgram.provider.connection.getTokenLargestAccounts(
                 mint,
@@ -1687,6 +1707,38 @@ programCommand('trash_list')
     );
     fs.writeFileSync('current-trash-pile.json', JSON.stringify(stolenTrash));
   });
+
+programCommand('sign_mints')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .option(
+    '-m --mintsFile <string>',
+    'path to the json file containing a list of mints to sign the metadata of',
+  )
+  .option('-i --index <number>', 'index to start signing at in the file')
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, mintsFile, index, start } = cmd.opts();
+    let parsedMints = JSON.parse(fs.readFileSync(mintsFile).toString());
+    if (index !== undefined) {
+      parsedMints = parsedMints.slice(index);
+    }
+    let i = 0;
+    for (let mint of parsedMints) {
+      const metadata = await getMetadata(new anchor.web3.PublicKey(mint));
+      console.log('got md:', metadata.toString());
+      try {
+        await signMetadata(metadata.toString(), keypair, env, rpcUrl);
+        console.log('signed md', i);
+        i++;
+        await sleep(100);
+      } catch {
+        console.log("tx failed, retry with param: '-i " + i + "'");
+      }
+    }
+  });
+
 function programCommand(name: string) {
   return program
     .command(name)
