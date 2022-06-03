@@ -302,6 +302,8 @@ programCommand('update_levels_on_chain')
                 const newJSON = fs.readFileSync(
                   'replacements/' + metadataAccounts[j].publicKey + '.json',
                 );
+
+                //@ts-ignore
                 const parsedJ = JSON.parse(newJSON);
                 const existing = parsedJ.attributes.find(
                   a => a.trait_type == '❤️',
@@ -552,8 +554,11 @@ programCommand('pull_chain_data')
               t.meta.innerInstructions.find(i =>
                 i.instructions.find(x => {
                   return (
+                    //@ts-ignore
                     x.program == 'spl-token' &&
+                    //@ts-ignore
                     x.parsed.type == 'approve' &&
+                    //@ts-ignore
                     x.parsed.info.source == holding.address.toBase58()
                   );
                 }),
@@ -614,6 +619,143 @@ programCommand('all_mints')
     fs.writeFileSync('valid_mints.json', JSON.stringify(combined));
   });
 
+programCommand('point_to_hydra')
+  .option(
+    '-r, --rpc-url <string>',
+    'custom rpc url since this is a heavy command',
+  )
+  .action(async (files: string[], cmd) => {
+    const { keypair, env, rpcUrl, start } = cmd.opts();
+    const walletKeyPair = loadWalletKey(keypair);
+    const anchorProgram = await loadTokenEntanglementProgream(
+      walletKeyPair,
+      env,
+      rpcUrl,
+    );
+    const mints = fs.readFileSync('valid_mints.json');
+    const parsed = JSON.parse(mints.toString());
+    let instructions = [];
+    const metadataAddresses = [];
+    for (let i = 0; i < parsed.length; i++) {
+      metadataAddresses.push(await getMetadata(new PublicKey(parsed[i])));
+    }
+    const metadataAccounts = await getMultipleAccounts(
+      anchorProgram.provider.connection,
+      metadataAddresses,
+    );
+    await Promise.all(
+      chunks(metadataAccounts, 1000).map(async slice => {
+        for (let j = 0; j < slice.length; j++) {
+          const metadata = decodeMetadata(slice[j].account.data);
+          try {
+            if (
+              metadata.data.creators[1].share < 68 &&
+              new PublicKey(metadata.updateAuthority).equals(
+                walletKeyPair.publicKey,
+              )
+            ) {
+              const newData = new Data({
+                ...metadata.data,
+                creators: [
+                  metadata.data.creators[0],
+                  new Creator({
+                    address: new PublicKey(
+                      'trshC9cTgL3BPXoAbp5w9UfnUMWEJx5G61vUijXPMLH',
+                    ).toBase58(),
+                    verified: 1,
+                    share: 68,
+                  }),
+                  new Creator({
+                    address: new PublicKey(
+                      'ENACtpCWKJAomGtWVH2UqdNKmkR1Ft4V81gC4oUbi5W1',
+                    ).toBase58(),
+                    verified: 0,
+                    share: 26,
+                  }),
+                  new Creator({
+                    address: new PublicKey(
+                      '8BoJdKKz3j4bUGJdAdGhaiSpv1EM9HhSm1cjy1iPrfhk',
+                    ).toBase58(),
+                    verified: 0,
+                    share: 5,
+                  }),
+                  new Creator({
+                    address: new PublicKey(
+                      '3B86L4BrRjm9V7sd3AjjJq5XFtyqMgCYMCTwqMMvAxgr',
+                    ).toBase58(),
+                    verified: 0,
+                    share: 1,
+                  }),
+                ],
+              });
+
+              const value = new UpdateMetadataArgs({
+                data: newData,
+                updateAuthority: walletKeyPair.publicKey.toBase58(),
+                primarySaleHappened: null,
+              });
+              const txnData = Buffer.from(serialize(METADATA_SCHEMA, value));
+              console.log(
+                'Writing to update',
+                metadata.mint,
+                metadata.data.name,
+                metadata.data.uri,
+              );
+
+              instructions.push(
+                createUpdateMetadataInstruction(
+                  slice[j].publicKey,
+                  walletKeyPair.publicKey,
+                  txnData,
+                ),
+              );
+            } else {
+              console.log(
+                'Skipping, already done',
+                slice[j].publicKey.toBase58(),
+                metadata.mint,
+              );
+            }
+            if (instructions.length >= 3) {
+              try {
+                await sendTransactionWithRetryWithKeypair(
+                  anchorProgram.provider.connection,
+                  walletKeyPair,
+                  instructions,
+                  [],
+                  'single',
+                );
+              } catch (e) {
+                console.error(e);
+                console.log('Failed txn');
+              }
+              console.log('At position', j);
+              instructions = [];
+            }
+          } catch (e) {
+            console.error(e);
+            console.log('done');
+          }
+        }
+
+        if (instructions.length >= 0) {
+          try {
+            await sendTransactionWithRetryWithKeypair(
+              anchorProgram.provider.connection,
+              walletKeyPair,
+              instructions,
+              [],
+              'single',
+            );
+          } catch (e) {
+            console.log('Failed txn');
+          }
+          console.log('At position end');
+          instructions = [];
+        }
+      }),
+    );
+  });
 programCommand('send_trash_tokens')
   .option(
     '-r, --rpc-url <string>',
@@ -1056,6 +1198,7 @@ programCommand('pull_chain_rug_set')
               toStore.id = json.name;
               toStore.metadata = metadata[1];
               toStore.owner = parsedToken.owner.toBase58();
+              toStore.mint = parsedToken.mint.toBase58();
               parsedAges.push(toStore);
             }
             if (i % 10 == 0) {
